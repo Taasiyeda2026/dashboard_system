@@ -2,10 +2,12 @@ import { api } from './api.js';
 import { state } from './state.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { hebrewPermissionField, hebrewRole } from './screens/shared/ui-hebrew.js';
+import { hebrewPermissionField, hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { ADMIN_ONLY_CAPABILITIES, ALL_PERMISSION_KEYS, capabilityTree } from './capability-registry.js';
 
-const VERSION = '20260823-v5';
+import { describeNewEntryCodeRule, isValidNewEntryCode, trimEntryCode } from './entry-code-policy.js';
+
+const VERSION = '20261126-v6';
 const STYLE_ID = 'admin-permissions-management-v2-style';
 const ROOT_ATTR = 'data-admin-permissions-management-v2';
 const ADMIN_ROLE = 'admin';
@@ -75,6 +77,7 @@ function ensureStyles() {
     .apm-checkline{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:750}.apm-checkline input{width:16px;height:16px}.apm-lock-note{margin-top:6px;color:#9a6700;font-size:11px}
     .apm-permission-group{margin-top:12px}.apm-permission-group:first-child{margin-top:0}.apm-permission-group h4{margin:0 0 7px;font-size:11.5px;color:var(--color-text-secondary,#64748b)}.apm-permission-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}.apm-permission-item{display:flex;align-items:center;gap:7px;min-height:28px;font-size:11.5px}.apm-permission-item input{width:15px;height:15px;flex:0 0 auto}.apm-role-default-note{margin:7px 0 0;color:var(--color-text-secondary,#64748b);font-size:10.5px}
     .apm-drawer-actions{display:flex;align-items:center;gap:8px;padding:12px 19px;border-top:1px solid var(--color-border,#e5e7eb);background:var(--color-surface,#fff)}.apm-save{height:34px;border:1px solid var(--color-primary,#0ea5c6);border-radius:6px;background:var(--color-primary,#0ea5c6);color:#fff;padding:0 16px;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.apm-secondary-btn{height:34px;border:1px solid var(--color-border,#cbd5e1);border-radius:6px;background:#fff;color:var(--color-text,#172033);padding:0 12px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}.apm-danger{margin-inline-start:auto;color:#b42318;border-color:#f1b5ae}.apm-status-text{font-size:11.5px;color:var(--color-text-secondary,#64748b)}
+    .apm-reset-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.apm-reset-row .apm-field{flex:1 1 150px}.apm-reset-row input{direction:ltr;text-align:left;letter-spacing:2px}.apm-reset-row button{flex-shrink:0}.apm-reset-status{margin:6px 0 0;min-height:1em;font-size:12px;color:var(--color-text-secondary,#64748b)}.apm-reset-status[data-error="true"]{color:#b42318}
     @media(max-width:820px){.apm-table th:nth-child(4),.apm-table td:nth-child(4),.apm-table th:nth-child(5),.apm-table td:nth-child(5){display:none}.apm-grid,.apm-permission-grid{grid-template-columns:1fr}.apm-search{width:100%;flex:1 1 220px}.apm-meta{width:100%;margin-inline-start:0}.apm-head{align-items:center}}
   `;
   document.head.appendChild(style);
@@ -295,6 +298,70 @@ function adminOnlyCapabilitiesHtml() {
   return `<details class="apm-permission-group"><summary><strong>כלי מנהל מערכת בלבד</strong></summary><p class="apm-role-default-note">כלים אלה אינם ניתנים להענקה לעובד רגיל.</p><ul>${labels}</ul></details>`;
 }
 
+function entryCodeResetHtml(row) {
+  if (!row || !isAdmin() || !isActive(row)) return '';
+  const username = escapeHtml(String(row.username_display || row.username || row.user_id || ''));
+  return `<section class="apm-section" data-apm-entry-code-reset>
+    <h3>איפוס קוד כניסה</h3>
+    <div class="apm-reset-row">
+      <div class="apm-field"><label for="apm-new-entry-code">קוד כניסה חדש · ${username}</label><input id="apm-new-entry-code" type="password" data-apm-new-entry-code inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="4–6 ספרות"></div>
+      <button type="button" class="apm-secondary-btn" data-apm-toggle-entry-code aria-label="הצגת קוד כניסה" aria-pressed="false">הצג</button>
+      <button type="button" class="apm-secondary-btn" data-apm-reset-entry-code>איפוס קוד כניסה</button>
+    </div>
+    <p class="apm-reset-status" data-apm-reset-status role="status" aria-live="polite"></p>
+  </section>`;
+}
+
+function bindEntryCodeReset(row, drawer) {
+  const input = drawer.querySelector('[data-apm-new-entry-code]');
+  const toggle = drawer.querySelector('[data-apm-toggle-entry-code]');
+  const reset = drawer.querySelector('[data-apm-reset-entry-code]');
+  const status = drawer.querySelector('[data-apm-reset-status]');
+  if (!row || !input || !toggle || !reset || !status) return;
+  const report = (message, error = false) => {
+    status.textContent = message;
+    status.dataset.error = String(error);
+  };
+  toggle.addEventListener('click', () => {
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    toggle.textContent = show ? 'הסתר' : 'הצג';
+    toggle.setAttribute('aria-pressed', String(show));
+    toggle.setAttribute('aria-label', show ? 'הסתרת קוד כניסה' : 'הצגת קוד כניסה');
+  });
+  reset.addEventListener('click', async () => {
+    if (reset.disabled || !isAdmin() || !isActive(row)) return;
+    const code = trimEntryCode(input.value);
+    if (!isValidNewEntryCode(code)) { report(describeNewEntryCodeRule(), true); return; }
+    if (!window.confirm('האם לאפס את קוד הכניסה של המשתמש? לאחר האיפוס, קוד הכניסה הקודם לא יהיה תקף.')) return;
+    reset.disabled = input.disabled = toggle.disabled = true;
+    report('מעדכן…');
+    try {
+      const { data, error } = await supabase.functions.invoke('management-password-reset', {
+        body: { action: 'admin_reset', target_user_id: String(row.user_id), new_entry_code: code }
+      });
+      if (error || !data?.ok) {
+        let reason = data?.error;
+        if (!reason && error?.context?.json) {
+          try { reason = (await error.context.json())?.error; } catch { /* fallback below */ }
+        }
+        report(translateApiErrorForUser(reason || 'update_failed'), true);
+        return;
+      }
+      input.value = '';
+      input.type = 'password';
+      toggle.textContent = 'הצג';
+      toggle.setAttribute('aria-pressed', 'false');
+      toggle.setAttribute('aria-label', 'הצגת קוד כניסה');
+      report('קוד הכניסה עודכן בהצלחה');
+    } catch {
+      report('עדכון קוד הכניסה נכשל. נסו שוב.', true);
+    } finally {
+      reset.disabled = input.disabled = toggle.disabled = false;
+    }
+  });
+}
+
 function drawerHtml(row) {
   const isNew = !row;
   const currentUserId = String(state?.user?.user_id || '');
@@ -309,6 +376,7 @@ function drawerHtml(row) {
     <aside class="apm-drawer" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
       <div class="apm-drawer-head"><div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div><button type="button" class="apm-close" data-apm-close aria-label="סגירה">×</button></div>
       <div class="apm-drawer-body">
+        ${entryCodeResetHtml(row)}
         <section class="apm-section">
           <h3>פרטי עובד</h3>
           <div class="apm-grid">
@@ -358,9 +426,10 @@ function openEmployeeDrawer(row) {
     bindPermissionHierarchy(drawer);
   });
   bindPermissionHierarchy(drawer);
+  bindEntryCodeReset(row, drawer);
   drawer.querySelector('[data-apm-save]')?.addEventListener('click', () => saveDrawer(row, drawer));
   drawer.querySelector('[data-apm-delete]')?.addEventListener('click', () => deleteEmployee(row, drawer));
-  drawer.querySelector('[data-apm-field="full_name"]')?.focus();
+  (drawer.querySelector('[data-apm-new-entry-code]') || drawer.querySelector('[data-apm-field="full_name"]'))?.focus();
 }
 
 function bindPermissionHierarchy(drawer) {
