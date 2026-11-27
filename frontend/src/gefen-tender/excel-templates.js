@@ -129,6 +129,19 @@ export function rowsForForm(code, program, peopleRows = []) {
     }));
   }
   if (Number(code) === 174) {
+    if (Array.isArray(p.syllabus_sessions) && p.syllabus_sessions.length) {
+      return p.syllabus_sessions.map((item, i) => ({
+        meeting: item.meeting_label || item.meeting_number || item.meeting || (i + 1),
+        audience: item.age_stage || item.audience || '',
+        topics: item.topic || item.topics || '',
+        content: item.content || '',
+        methods: item.methods || '',
+        skills: item.skills_values || item.skills || '',
+        catalog_ref: item.source
+          ? `${item.source}${item.source_page ? ` | עמוד ${item.source_page}` : ''}${item.catalog_only ? ' · קטלוגי (לא 174 מאושר)' : ''}`
+          : (item.catalog_ref || '')
+      }));
+    }
     if (Array.isArray(p.syllabus_items) && p.syllabus_items.length) {
       return p.syllabus_items.map((item, i) => ({
         meeting: item.meeting ?? i + 1,
