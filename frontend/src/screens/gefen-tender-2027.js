@@ -28,8 +28,7 @@ import {
 import {
   BASKET_112, BASKET_112_TITLE, CHAPTERS_112, association112, countWords,
   enrichQuestion112, programsWith112, withinWordLimit,
-  limitAppliesToExtra, limitedAnswerText, isFieldFormatRequirement,
-  professionalRequirementText
+  limitAppliesToExtra, limitedAnswerText, professionalRequirementText
 } from '../gefen-tender/questionnaire-112.js';
 import { applyCatalog112 } from '../gefen-tender/catalog-112.js';
 import { administrativeCompleted, programReadinessRows112 } from '../gefen-tender/readiness.js';
