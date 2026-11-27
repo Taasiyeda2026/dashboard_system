@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gefen UX shell fixture</title>
+  <link rel="stylesheet" href="../../frontend/src/styles/gefen-tender-2027.css">
+  <style>
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: #eef2f6; color: #0f172a; }
+    .shell { display: grid; grid-template-columns: 1fr 220px; min-height: 100vh; }
+    .side {
+      background: #12325a; color: #fff; padding: 16px 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .side strong { font-size: 18px; }
+    .side small { opacity: .8; }
+    .side a { color: #dbeafe; text-decoration: none; padding: 8px 10px; border-radius: 8px; }
+    .side a.is-on { background: rgba(255,255,255,.12); }
+    .main { padding: 12px 16px 24px; min-width: 0; }
+    .banner { margin: 0 0 8px; color: #475569; font-size: 13px; }
+    .tabs-demo { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+    .tabs-demo button { height:32px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main class="main">
+      <p class="banner">ניהול · כלי הניהול המרכזיים במקום אחד</p>
+      <div data-gefen-tender-section>
+        <button type="button" class="admin-course-results-back">חזרה לניהול</button>
+        <div data-gefen-tender-workspace>
+          <div class="gt" dir="rtl">
+            <header class="gt-header">
+              <div>
+                <h1 class="gt-header__title">מכרז גפ״ן 2027</h1>
+                <p class="gt-header__sub">חדשנות ויזמות טכנולוגית | תת סל 112</p>
+              </div>
+              <div class="gt-header__meta">
+                <span>17 תוכניות</span>
+                <span>0 הגשות בטיפול</span>
+              </div>
+            </header>
+            <nav class="gt-nav">
+              <button class="gt-nav__btn" type="button">הגשה מנהלית</button>
+              <button class="gt-nav__btn" type="button" aria-current="true">תוכניות והגשות</button>
+              <button class="gt-nav__btn" type="button">מפתחים ומפעילים</button>
+              <button class="gt-nav__btn" type="button">מסמכים ותבניות</button>
+              <button class="gt-nav__btn" type="button">בקרת מוכנות</button>
+              <button class="gt-nav__btn" type="button">הגשה למכרז</button>
+            </nav>
+
+            <div class="gt-toolbar">
+              <button type="button">חזרה לרשימה</button>
+              <strong>Arduino</strong>
+              <span class="gt-header__sub">#— · שיוך 112</span>
+              <button type="button" class="gt-btn--primary">שמירה</button>
+              <button type="button">הגשה למכרז</button>
+            </div>
+            <div class="gt-subnav">
+              <button type="button">פרטי תוכנית</button>
+              <button type="button" aria-current="true">מאגר ידע</button>
+              <button type="button">תשובות היסטוריות</button>
+              <button type="button">ניסיון והמלצות</button>
+              <button type="button">מפתחים ומפעילים</button>
+              <button type="button">סילבוס</button>
+              <button type="button">מסמכים ומקורות</button>
+            </div>
+
+            <div class="gt-toolbar">
+              <input type="search" placeholder="חיפוש במאגר" value="">
+              <select><option>כל המקורות</option></select>
+              <select><option>כל הסוגים</option></select>
+              <button type="button" class="gt-btn--primary gt-btn--sm">הוספת מידע</button>
+              <button type="button" class="gt-btn--sm">ייבוא Excel</button>
+            </div>
+            <div class="gt-empty">טרם נוסף מידע.</div>
+
+            <div class="gt-panel" style="margin-top:16px">
+              <div class="gt-panel__title">פרטי תוכנית — דוגמת שדות</div>
+              <div class="gt-grid-2">
+                <div class="gt-field"><label>שם תוכנית</label><input type="text" value="Arduino"></div>
+                <div class="gt-field"><label>תחום מרכזי</label><select><option>בחרו</option><option>לימודי</option></select></div>
+                <div class="gt-field"><label>תקציר התוכנית</label><textarea rows="4" maxlength="1000"></textarea><small class="gt-count">0 / 1000</small></div>
+                <div class="gt-field"><label>מטרה מרכזית</label><textarea rows="3" maxlength="750"></textarea><small class="gt-count">0 / 750</small></div>
+                <div class="gt-field"><label>מגזר</label>
+                  <div data-multi="sector">
+                    <label><input type="checkbox">יהודי</label>
+                    <label><input type="checkbox">ערבי</label>
+                    <label><input type="checkbox">דרוזי</label>
+                    <label><input type="checkbox">בדואי</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="gt-panel">
+              <div class="gt-panel__title">הגשה למכרז — ניווט מספרי</div>
+              <div class="gt-submit">
+                <aside class="gt-qnav">
+                  <div class="gt-qnav__chapter">שאלות כלליות</div>
+                  <div class="gt-qnav__grid">
+                    <button class="gt-qnav__num is-active" type="button">1<span class="gt-qnav__dot gt-qnav__dot--draft"></span></button>
+                    <button class="gt-qnav__num" type="button">2<span class="gt-qnav__dot"></span></button>
+                    <button class="gt-qnav__num" type="button">3<span class="gt-qnav__dot gt-qnav__dot--ok"></span></button>
+                    <button class="gt-qnav__num" type="button">4<span class="gt-qnav__dot"></span></button>
+                    <button class="gt-qnav__num" type="button">5<span class="gt-qnav__dot"></span></button>
+                  </div>
+                </aside>
+                <section class="gt-qwork">
+                  <div class="gt-qwork__head">
+                    <h2 class="gt-qwork__title">1. בחירת אפיק מדויק לתת־הסל</h2>
+                    <span class="gt-badge gt-badge--info">טיוטה</span>
+                  </div>
+                  <div class="gt-choice-row">
+                    <label><input type="radio" name="c" checked>יזמות טכנולוגית</label>
+                    <label><input type="radio" name="c">חדשנות פדגוגית ארגונית</label>
+                  </div>
+                  <div class="gt-q-actions">
+                    <button type="button" class="gt-btn--primary">העתקת נתונים ל־ChatGPT</button>
+                    <button type="button" class="gt-btn--primary">שמירה</button>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div class="gt-panel">
+              <div class="gt-panel__title">בקרת מוכנות — חיווי קומפקטי</div>
+              <table class="gt-table"><thead><tr>
+                <th>תוכנית</th><th>תשובות</th><th>מפתחים</th><th>ניסיון</th><th>סילבוס</th>
+              </tr></thead><tbody>
+                <tr>
+                  <td>Arduino</td>
+                  <td>0/41</td>
+                  <td><button class="gt-ready-cell" type="button"><span class="gt-dot gt-dot--muted"></span>חסר</button></td>
+                  <td><button class="gt-ready-cell" type="button"><span class="gt-dot gt-dot--muted"></span>חסר</button></td>
+                  <td><button class="gt-ready-cell" type="button"><span class="gt-dot gt-dot--muted"></span>חסר</button></td>
+                </tr>
+              </tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <aside class="side">
+      <strong>תעשיידע</strong>
+      <small>עידן נחום · מנהל מערכת</small>
+      <a href="#">לוח בקרה</a>
+      <a href="#">פעילויות</a>
+      <a href="#">תיק לקוח</a>
+      <a href="#">משובים</a>
+      <a class="is-on" href="#">ניהול</a>
+    </aside>
+  </div>
+</body>
+</html>

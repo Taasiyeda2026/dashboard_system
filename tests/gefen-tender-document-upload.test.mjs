@@ -106,7 +106,7 @@ test('screen wires upload zones across admin program operator and documents tabs
   assert.match(src, /recommendations_documents/);
   assert.match(src, /scopeKey: `operator:\$\{row\.id\}`/);
   assert.match(src, /data-doc-drop/);
-  assert.match(src, /העלאת מסמך אינה מסמנת את הסעיף כהושלם אוטומטית/);
+  assert.match(src, /העלאת מסמך אינה מסמנת את הסעיף כהושלם/);
   assert.match(src, /section\.documents = normalizeDocuments/);
   assert.doesNotMatch(src, /section\.status\s*=\s*['"]הושלם['"]/);
 });

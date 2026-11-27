@@ -1209,7 +1209,7 @@ export async function mountGefenTender(root) {
           </div>
         </details>
         <div class="gt-q-actions">
-          <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקת הקשר לשאלה</button>
+          <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקת נתונים ל־ChatGPT</button>
         </div>
         <div class="gt-answer-area" data-answer-block="${currentIdx}">
           ${renderQuestionInput(current, qObj)}
