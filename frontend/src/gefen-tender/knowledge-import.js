@@ -323,9 +323,13 @@ export function filterKnowledgeItems(items, {
   topic = '',
   type = '',
   verification = '',
-  assignment = ''
+  assignment = '',
+  includeInactive = false
 } = {}) {
   let list = Array.isArray(items) ? items : [];
+  if (!includeInactive && assignment !== 'inactive') {
+    list = list.filter((i) => i.assignment_status !== 'inactive');
+  }
   if (search) {
     const q = search.trim().toLowerCase();
     list = list.filter((i) =>
@@ -338,4 +342,11 @@ export function filterKnowledgeItems(items, {
   if (verification) list = list.filter((i) => i.verification_status === verification);
   if (assignment) list = list.filter((i) => i.assignment_status === assignment);
   return list;
+}
+
+/** Pending queue only — never inactive or already assigned. */
+export function pendingKnowledgeItems(items) {
+  return (Array.isArray(items) ? items : []).filter((i) =>
+    i.assignment_status !== 'inactive' && (i.assignment_status === 'pending_program' || !i.program_id)
+  );
 }

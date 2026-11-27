@@ -34,6 +34,10 @@ export function createKnowledgeItem(partial = {}) {
     program_match_suggestions: Array.isArray(partial.program_match_suggestions)
       ? partial.program_match_suggestions
       : [],
+    shared_with_program_ids: Array.isArray(partial.shared_with_program_ids)
+      ? partial.shared_with_program_ids.filter(Boolean)
+      : [],
+    age_share: String(partial.age_share || '').trim(),
     intake_at: partial.intake_at || '',
     import_batch_id: String(partial.import_batch_id || '').trim(),
     is_submission_answer: false,
@@ -95,6 +99,38 @@ export function summarizeGaps(payload, answers) {
   return [...new Set(gaps)];
 }
 
+/** Pending = awaiting program assignment. Inactive items stay in the bank but are not pending. */
+export function isKnowledgePending(item) {
+  if (!item) return false;
+  if (item.assignment_status === 'inactive') return false;
+  if (item.assignment_status === 'assigned' && item.program_id) return false;
+  return item.assignment_status === 'pending_program' || !item.program_id;
+}
+
+export function isKnowledgeActive(item) {
+  return Boolean(item) && item.assignment_status !== 'inactive';
+}
+
+/** Mark items inactive without deleting; they leave the pending queue. */
+export function deactivateKnowledgeItems(unassigned, itemIds = [], reason = '') {
+  const ids = new Set(itemIds);
+  const now = new Date().toISOString();
+  return (Array.isArray(unassigned) ? unassigned : []).map((item) => {
+    if (!ids.has(item.id)) return item;
+    const notes = [
+      String(item.notes || '').trim(),
+      reason ? `לא פעיל לשלב הנוכחי: ${reason}` : 'לא פעיל לשלב הנוכחי'
+    ].filter(Boolean).join('\n');
+    return {
+      ...item,
+      assignment_status: 'inactive',
+      program_id: null,
+      updated_at: now,
+      notes
+    };
+  });
+}
+
 /** Assign pending knowledge item onto a program list (by moving id). */
 export function assignKnowledgeToProgram(unassigned, programItems, itemId, programId) {
   const pending = Array.isArray(unassigned) ? [...unassigned] : [];
@@ -111,4 +147,35 @@ export function assignKnowledgeToProgram(unassigned, programItems, itemId, progr
     unassigned: pending,
     programItems: appendKnowledgeItems(programItems || [], [item])
   };
+}
+
+/**
+ * Assign one pending item to one or more programs (dual-share).
+ * Removes from unassigned once; appends the same content to each program list.
+ * shared_with_program_ids preserves linkage without inventing content.
+ */
+export function assignKnowledgeToPrograms(unassigned, programItemsById, itemId, programIds = []) {
+  const pending = Array.isArray(unassigned) ? [...unassigned] : [];
+  const idx = pending.findIndex((x) => x.id === itemId);
+  const targets = [...new Set((programIds || []).filter(Boolean))];
+  if (idx < 0 || !targets.length) {
+    return { unassigned: pending, programItemsById: programItemsById || {} };
+  }
+  const now = new Date().toISOString();
+  const base = pending[idx];
+  pending.splice(idx, 1);
+  const next = { ...(programItemsById || {}) };
+  for (const programId of targets) {
+    const shared = targets.filter((id) => id !== programId);
+    const item = {
+      ...base,
+      program_id: programId,
+      assignment_status: 'assigned',
+      shared_with_program_ids: shared,
+      age_share: shared.length ? 'shared' : (base.age_share || ''),
+      updated_at: now
+    };
+    next[programId] = appendKnowledgeItems(next[programId] || [], [item]);
+  }
+  return { unassigned: pending, programItemsById: next };
 }

@@ -18,7 +18,7 @@ import {
   appendHistoricalAnswers, historicalForQuestion, parseHistoricalImport
 } from '../gefen-tender/historical-answers.js';
 import {
-  filterKnowledgeItems, planKnowledgeWorkbook
+  filterKnowledgeItems, pendingKnowledgeItems, planKnowledgeWorkbook
 } from '../gefen-tender/knowledge-import.js';
 import {
   buildSubmissionAnswers, ensureAssociationQuestions
@@ -458,7 +458,8 @@ export async function mountGefenTender(root) {
 
   function knowledgePanel(p) {
     const admin = administrative();
-    const unassigned = admin?.payload?.unassigned_knowledge_items || [];
+    const unassignedAll = admin?.payload?.unassigned_knowledge_items || [];
+    const unassigned = pendingKnowledgeItems(unassignedAll);
     const topics = [...new Set((p.knowledge_items || []).map((i) => i.topic).filter(Boolean))];
     let items = filterKnowledgeItems(p.knowledge_items || [], {
       search: searchKnowledge,

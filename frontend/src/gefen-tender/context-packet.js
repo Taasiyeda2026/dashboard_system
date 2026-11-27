@@ -73,7 +73,8 @@ function knowledgeCard(item) {
  * Never mixes programs; never treats knowledge as final answers.
  */
 function relevantKnowledge(items, answer) {
-  const list = Array.isArray(items) ? items : [];
+  // Never include inactive / out-of-stage knowledge in ChatGPT packets.
+  const list = (Array.isArray(items) ? items : []).filter((item) => item && item.assignment_status !== 'inactive');
   const qid = answer.question_id || answer.key;
   const related = [];
   const sameTopic = [];
