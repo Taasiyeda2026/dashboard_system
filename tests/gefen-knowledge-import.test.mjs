@@ -4,9 +4,12 @@ import * as XLSX from 'xlsx';
 import { readFileSync } from 'node:fs';
 import {
   detectColumns, matchProgram, planKnowledgeWorkbook, suggestRelated112,
-  filterKnowledgeItems, findUnifiedSheetName
+  filterKnowledgeItems, findUnifiedSheetName, pendingKnowledgeItems
 } from '../frontend/src/gefen-tender/knowledge-import.js';
-import { appendKnowledgeItems, assignKnowledgeToProgram } from '../frontend/src/gefen-tender/knowledge.js';
+import {
+  appendKnowledgeItems, assignKnowledgeToProgram, assignKnowledgeToPrograms,
+  deactivateKnowledgeItems, isKnowledgePending
+} from '../frontend/src/gefen-tender/knowledge.js';
 import { buildContextPacket, CHATGPT_SYSTEM_PROMPT_112 } from '../frontend/src/gefen-tender/context-packet.js';
 import { buildSubmissionAnswers } from '../frontend/src/gefen-tender/questionnaires.js';
 
@@ -113,4 +116,38 @@ test('filterKnowledgeItems filters by topic and search', () => {
   ];
   assert.equal(filterKnowledgeItems(list, { topic: 'מטרות' }).length, 1);
   assert.equal(filterKnowledgeItems(list, { search: 'סילב' }).length, 1);
+});
+
+test('inactive knowledge leaves pending queue and ChatGPT packet', () => {
+  const pending = [
+    { id: 'H-a', content: 'פעיל', assignment_status: 'pending_program' },
+    { id: 'H-b', content: 'ישן', assignment_status: 'pending_program' }
+  ];
+  const after = deactivateKnowledgeItems(pending, ['H-b'], 'Ready Skills Go');
+  assert.equal(after.find((x) => x.id === 'H-b').assignment_status, 'inactive');
+  assert.equal(pendingKnowledgeItems(after).length, 1);
+  assert.equal(isKnowledgePending(after.find((x) => x.id === 'H-b')), false);
+  assert.equal(filterKnowledgeItems(after).length, 1);
+  assert.equal(filterKnowledgeItems(after, { includeInactive: true }).length, 2);
+
+  const dual = assignKnowledgeToPrograms(after, { 'p-6089': [], 'p-53828': [] }, 'H-a', ['p-6089', 'p-53828']);
+  assert.equal(dual.unassigned.length, 1);
+  assert.equal(dual.programItemsById['p-6089'].length, 1);
+  assert.equal(dual.programItemsById['p-53828'].length, 1);
+  assert.deepEqual(dual.programItemsById['p-6089'][0].shared_with_program_ids, ['p-53828']);
+
+  const row = {
+    id: 'p-x', title: 'בדיקה', revision: 1,
+    payload: {
+      associations: [{ code: 112, questions: [{ id: '112.13', number: 13, label: 'מטרות', answer: '' }] }],
+      knowledge_items: [
+        { id: 'H-ok', content: 'מידע פעיל', related_questions: ['112.13'], verification_status: 'ממתין לאימות' },
+        { id: 'H-dead', content: 'מידע לא פעיל', assignment_status: 'inactive', related_questions: ['112.13'] }
+      ]
+    }
+  };
+  const answer = buildSubmissionAnswers(row).find((a) => a.question_id === '112.13');
+  const packet = buildContextPacket(row, answer, []);
+  assert.match(packet, /מידע פעיל/);
+  assert.doesNotMatch(packet, /מידע לא פעיל/);
 });
