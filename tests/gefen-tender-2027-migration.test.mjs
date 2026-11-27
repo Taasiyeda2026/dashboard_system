@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const migration = await readFile(
-  new URL('../supabase/migrations/20261127040000_gefen_tender_2027_save_rpc.sql', import.meta.url),
+  new URL('../supabase/migrations/20261127013918_gefen_tender_2027_save_rpc.sql', import.meta.url),
   'utf8'
 );
 const seed = await readFile(
-  new URL('../supabase/migrations/20261127021000_gefen_tender_2027.sql', import.meta.url),
+  new URL('../supabase/migrations/20261127001309_gefen_tender_2027.sql', import.meta.url),
   'utf8'
 );
 
