@@ -128,6 +128,11 @@ function managementTilesHtml() {
   const routes = effectiveRoutes();
   const isAdmin = canViewAdminOnlyTools();
   const tiles = [
+    isAdmin && tileButton({
+      title: 'מכרז גפן 2027',
+      description: 'הגשה מנהלית, תוכניות ומסמכי המכרז',
+      icon: 'control'
+    }).replace('class="admin-management-tile"', 'class="admin-management-tile" data-gefen-tender-open="true"'),
     '<div data-budget-entry hidden></div>',
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
@@ -342,6 +347,13 @@ export const adminHomeScreen = {
             ${managementTilesHtml()}
           </div>
         </div>
+        ${canViewAdminOnlyTools() ? `
+          <section data-gefen-tender-section hidden aria-label="מכרז גפן 2027">
+            <button type="button" class="admin-course-results-back" data-gefen-tender-back>חזרה לניהול</button>
+            <h2>מכרז גפן 2027</h2>
+            <div data-gefen-tender-workspace></div>
+          </section>
+        ` : ''}
         ${canViewCourseResults() ? `
           <section data-course-results-section hidden aria-label="תוצאות קורסים">
             <div data-course-results-catalog>
@@ -371,6 +383,16 @@ export const adminHomeScreen = {
     `);
   },
   bind({ root }) {
+    if (canViewAdminOnlyTools()) {
+      const main = root?.querySelector('[data-course-results-main]');
+      const tender = root?.querySelector('[data-gefen-tender-section]');
+      root?.querySelector('[data-gefen-tender-open]')?.addEventListener('click', () => {
+        if (canViewAdminOnlyTools() && main && tender) { main.hidden = true; tender.hidden = false; const workspace=tender.querySelector('[data-gefen-tender-workspace]'); void import('./gefen-tender-2027.js').then(m=>m.mountGefenTender(workspace)).catch(()=>{workspace.textContent='טעינת הממשק נכשלה';}); }
+      });
+      root?.querySelector('[data-gefen-tender-back]')?.addEventListener('click', () => {
+        if (main && tender) { tender.hidden = true; main.hidden = false; }
+      });
+    }
     const budgetEntry = root?.querySelector('[data-budget-entry]');
     if (budgetEntry) {
       void resolveBudgetUser(supabase).then(user => {
