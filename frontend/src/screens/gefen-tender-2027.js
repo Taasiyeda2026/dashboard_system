@@ -27,7 +27,8 @@ import {
 } from '../gefen-tender/questionnaires.js';
 import {
   BASKET_112, BASKET_112_TITLE, CHAPTERS_112, association112, countWords,
-  enrichQuestion112, programsWith112, withinWordLimit
+  enrichQuestion112, programsWith112, withinWordLimit,
+  limitAppliesToExtra, limitedAnswerText
 } from '../gefen-tender/questionnaire-112.js';
 import { applyCatalog112 } from '../gefen-tender/catalog-112.js';
 import { administrativeCompleted, programReadinessRows112 } from '../gefen-tender/readiness.js';
@@ -93,8 +94,9 @@ function answerTone(state) {
 
 function answerState(row, a) {
   const has = Boolean(String(a.value || '').trim());
-  const over = (a.limit && !withinLimit(a.value, a.limit))
-    || (a.limit_words && !withinWordLimit(a.value, a.limit_words));
+  const limited = limitedAnswerText(a);
+  const over = (a.limit && !withinLimit(limited, a.limit))
+    || (a.limit_words && !withinWordLimit(limited, a.limit_words));
   if (over) return 'over';
   if (isFinalAnswer(row.payload?.final_answers, a.key, a.value)) return 'ok';
   if (has) return 'draft';
@@ -300,20 +302,7 @@ export async function mountGefenTender(root) {
     });
     p.associations = (p.associations || []).map((a, i) => {
       const ensured = ensureAssociationQuestions(a);
-      if (Number(ensured.code) === BASKET_112 && Array.isArray(ensured.questions) && ensured.questions.length) {
-        const catalogued = applyCatalog112(ensured.questions);
-        return {
-          ...ensured,
-          questions: catalogued.map((q, j) => {
-            const key = `q_${i}_${j}`;
-            const extraKey = `q_${i}_${j}_extra`;
-            const next = { ...q };
-            if (key in v) next.answer = v[key];
-            if (extraKey in v) next.answer_extra = v[extraKey];
-            return next;
-          })
-        };
-      }
+      // Do not re-apply catalog on every save — preserves production template limits.
       if (Array.isArray(ensured.questions) && ensured.questions.length) {
         return {
           ...ensured,
@@ -849,11 +838,16 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   function renderQuestionInput(a, q) {
     const type = a.answer_type || q.answer_type || 'text';
     const choices = a.choices || q.choices;
+    const extraLimited = limitAppliesToExtra({ ...q, ...a, number: a.number || q.number });
+    const extraMax = extraLimited && a.limit ? ` maxlength="${Number(a.limit)}"` : '';
+    const extraHint = extraLimited && a.limit
+      ? `<small class="gt-count" data-extra-count>${String(q.answer_extra || '').length} / ${a.limit} תווים (טקסט משלים)</small>`
+      : '';
     if (type === 'yes_no_text' || (choices && a.extra_text)) {
       return `<div class="gt-choice-row">${(choices || ['כן', 'לא']).map((c) =>
         `<label><input type="radio" name="qchoice" data-q-choice value="${esc(c)}"${String(q.answer || '') === c ? ' checked' : ''}>${esc(c)}</label>`
       ).join('')}</div>
-      <textarea data-q-extra class="gt-ta--long" rows="4" placeholder="טקסט משלים">${esc(q.answer_extra || '')}</textarea>`;
+      <textarea data-q-extra class="gt-ta--long" rows="4" placeholder="טקסט משלים"${extraMax}>${esc(q.answer_extra || '')}</textarea>${extraHint}`;
     }
     if (type === 'single_choice' && choices) {
       return `<div class="gt-choice-row">${choices.map((c) =>
@@ -925,11 +919,13 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     }
 
     const st = answerState(row, current);
-    const words = countWords(current.value);
-    const chars = String(current.value || '').length;
-    const overChars = current.limit && !withinLimit(current.value, current.limit);
-    const overWords = current.limit_words && !withinWordLimit(current.value, current.limit_words);
+    const limited = limitedAnswerText(current);
+    const words = countWords(limited);
+    const chars = String(limited || '').length;
+    const overChars = current.limit && !withinLimit(limited, current.limit);
+    const overWords = current.limit_words && !withinWordLimit(limited, current.limit_words);
     const hist = historicalForQuestion(row.payload?.historical_answers, current.question_id, current.label);
+    const limitTarget = limitAppliesToExtra(current) ? 'טקסט משלים' : 'תשובה';
 
     const nav = CHAPTERS_112.map((ch) => {
       const qs = answers.filter((a) => Number(a.number) >= ch.from && Number(a.number) <= ch.to);
@@ -943,11 +939,13 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       }).join('')}`;
     }).join('');
 
-    const limitLabel = current.limit_words
-      ? `${words} / ${current.limit_words} מילים`
-      : current.limit
-        ? `${chars} / ${current.limit} תווים`
-        : `${chars} תווים · ${words} מילים`;
+    const limitLabel = current.limit_words && current.limit
+      ? `${chars} / ${current.limit} תווים · ${words} / ${current.limit_words} מילים (${limitTarget})`
+      : current.limit_words
+        ? `${words} / ${current.limit_words} מילים (${limitTarget})`
+        : current.limit
+          ? `${chars} / ${current.limit} תווים (${limitTarget})`
+          : `${String(current.value || '').length} תווים · ${countWords(current.value)} מילים`;
 
     h += `<div class="gt-submit">
       <aside class="gt-qnav" aria-label="ניווט שאלות">${nav}</aside>
@@ -956,7 +954,11 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
           <div>
             <h2 class="gt-qwork__title">${current.number}. ${esc(current.label)}</h2>
             <div class="gt-qwork__meta">${esc(current.chapter_label || '')}${current.limit || current.limit_words
-              ? ` · מגבלה: ${current.limit_words ? `${current.limit_words} מילים` : `${current.limit} תווים`}` : ''}</div>
+              ? ` · מגבלה: ${[
+                current.limit ? `${current.limit} תווים` : null,
+                current.limit_words ? `${current.limit_words} מילים` : null,
+                limitAppliesToExtra(current) ? 'על טקסט משלים' : null
+              ].filter(Boolean).join(' · ')}` : ''}</div>
           </div>
           ${statusBadge(answerStateLabel(st), answerTone(st))}
         </div>
@@ -1527,10 +1529,33 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       scheduleAutosave();
       const count = root.querySelector('[data-answer-count]');
       if (count && (t.matches('[data-q-text]') || t.matches('[data-q-extra]'))) {
-        const text = [root.querySelector('[data-q-choice]:checked')?.value, root.querySelector('[data-q-extra]')?.value || root.querySelector('[data-q-text]')?.value]
-          .filter(Boolean).join(' — ');
+        const answers = submissionId
+          ? buildSubmissionAnswers(rows.find((r) => r.id === submissionId) || {}).filter((a) => a.code === BASKET_112 && !a.unmapped)
+          : [];
+        const current = answers[questionIndex];
+        const extraEl = root.querySelector('[data-q-extra]');
+        const textEl = root.querySelector('[data-q-text]');
+        const useExtra = current && limitAppliesToExtra(current) && extraEl;
+        const text = useExtra
+          ? (extraEl?.value || '')
+          : (textEl?.value || extraEl?.value || '');
         const words = countWords(text);
-        count.textContent = `${String(text || '').length} תווים · ${words} מילים`;
+        const lim = current?.limit;
+        const wlim = current?.limit_words;
+        const target = useExtra ? 'טקסט משלים' : 'תשובה';
+        let label = lim && wlim
+          ? `${text.length} / ${lim} תווים · ${words} / ${wlim} מילים (${target})`
+          : lim
+            ? `${text.length} / ${lim} תווים (${target})`
+            : wlim
+              ? `${words} / ${wlim} מילים (${target})`
+              : `${text.length} תווים · ${words} מילים`;
+        const over = (lim && text.length > lim) || (wlim && words > wlim);
+        if (over) label += ' · חריגה מהמגבלה';
+        count.textContent = label;
+        count.classList.toggle('is-over', Boolean(over));
+        const extraCount = root.querySelector('[data-extra-count]');
+        if (extraCount && lim) extraCount.textContent = `${(extraEl?.value || '').length} / ${lim} תווים (טקסט משלים)`;
       }
     }
   };

@@ -1,7 +1,8 @@
 import { ADMIN_STATUSES } from './constants.js';
 import { answerText, isFinalAnswer, withinLimit } from './final-answers.js';
 import {
-  BASKET_112, association112, countWords, enrichQuestion112, withinWordLimit
+  BASKET_112, association112, enrichQuestion112, withinWordLimit,
+  limitedAnswerText
 } from './questionnaire-112.js';
 
 export function administrativeCompleted(adminRow) {
@@ -59,8 +60,9 @@ export function readiness112(row, adminCompleted) {
     if (!has) missing += 1;
     else if (isFinal) approved += 1;
     else drafts += 1;
-    if (a.limit && !withinLimit(a.value, a.limit)) over += 1;
-    if (a.limit_words && !withinWordLimit(a.value, a.limit_words)) over += 1;
+    const limited = limitedAnswerText(a);
+    if (a.limit && !withinLimit(limited, a.limit)) over += 1;
+    if (a.limit_words && !withinWordLimit(limited, a.limit_words)) over += 1;
   }
 
   const p = row.payload || {};
@@ -145,5 +147,3 @@ export function associationReadiness(row, associationIndex, adminCompleted) {
 export function programReadinessRows(rows) {
   return programReadinessRows112(rows);
 }
-
-export { countWords };
