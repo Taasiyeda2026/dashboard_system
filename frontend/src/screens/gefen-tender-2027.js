@@ -1122,6 +1122,9 @@ export async function mountGefenTender(root) {
     }
     if (!filtered.length) filtered = answers.map((a, i) => ({ a, i }));
     if (questionIndex >= answers.length) questionIndex = 0;
+    if (filtered.length && !filtered.some(({ i }) => i === questionIndex)) {
+      questionIndex = filtered[0].i;
+    }
     const current = answers[questionIndex] || filtered[0]?.a;
     const currentIdx = answers.indexOf(current);
     const qObj = questions[currentIdx] || enrichQuestion112({ label: current?.label, number: current?.number });
@@ -2046,8 +2049,18 @@ export async function mountGefenTender(root) {
       draw();
       return;
     }
-    if (t.matches('[data-filter-q]')) { filterQ = t.value; draw(); return; }
-    if (t.matches('[data-search-q]')) { searchQ = t.value; draw(); return; }
+    if (t.matches('[data-filter-q]')) {
+      filterQ = t.value;
+      questionIndex = 0;
+      draw();
+      return;
+    }
+    if (t.matches('[data-search-q]')) {
+      searchQ = t.value;
+      questionIndex = 0;
+      draw();
+      return;
+    }
     if (t.matches('[data-historical-file]') && t.files?.[0]) {
       const row = get();
       const reader = new FileReader();
