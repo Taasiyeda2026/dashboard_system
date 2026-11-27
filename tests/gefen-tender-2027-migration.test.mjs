@@ -39,3 +39,14 @@ test('append_historical migration extends save modes without touching final_answ
   assert.match(hist, /final_answers/);
   assert.match(hist, /p_mode not in \('save_payload', 'set_answers', 'append_knowledge', 'append_historical'\)/);
 });
+
+test('append knowledge field helper is append-only and scoped to knowledge fields', async () => {
+  const sql = await readFile(
+    new URL('../supabase/migrations/20261127180000_gefen_tender_append_knowledge_field.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(sql, /gefen_tender_append_knowledge_field/);
+  assert.match(sql, /unassigned_knowledge_items/);
+  assert.match(sql, /final_answers/);
+  assert.match(sql, /invalid_field/);
+});

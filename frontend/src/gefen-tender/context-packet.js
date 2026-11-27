@@ -9,7 +9,8 @@ export const CHATGPT_SYSTEM_PROMPT_112 = `עליך להכין תשובה מקצ�
 
 התבסס על נוסח השאלה, דרישות המענה, מגבלות התווים והמילים, תנאי המכרז והמידע המצטבר במערכת.
 
-בחן תשובות היסטוריות, ככל שקיימות, והתאם אותן לדרישות המכרז הנוכחי.
+בחן תשובות היסטוריות ופריטי מאגר ידע מצטבר, ככל שקיימים, והתאם אותם לדרישות המכרז הנוכחי.
+מאגר הידע הוא בסיס לניסוח בלבד — אינו תשובה סופית ואינו אסמכתה מאומתת למכרז 2027.
 
 השתמש במידע הקיים ב־Supabase, בחומרי התוכנית ב־Google Drive ובמסמכים הרלוונטיים ב־SharePoint, בהתאם להרשאות הגישה הזמינות.
 
@@ -51,14 +52,55 @@ function pick(obj, keys) {
   return Object.fromEntries(keys.filter((k) => filled(obj?.[k])).map((k) => [k, obj[k]]));
 }
 
+function knowledgeCard(item) {
+  return {
+    id: item.id,
+    title: item.title,
+    topic: item.topic || '',
+    type: item.type,
+    info_kind: item.info_kind || '',
+    original_question: item.original_question || '',
+    content: item.content,
+    source: item.source,
+    related_questions: item.related_questions || [],
+    verification_status: item.verification_status,
+    note: 'מידע מצטבר ממקורות קודמים — אינו תשובה מאושרת למכרז 2027'
+  };
+}
+
+/**
+ * Prefer items linked to the question, then same-topic, then other program knowledge.
+ * Never mixes programs; never treats knowledge as final answers.
+ */
 function relevantKnowledge(items, answer) {
   const list = Array.isArray(items) ? items : [];
   const qid = answer.question_id || answer.key;
-  const related = list.filter((item) =>
-    Array.isArray(item.related_questions) && item.related_questions.some((r) => r === qid || r === answer.key)
-  );
-  if (related.length) return related;
-  return list.slice(0, 40);
+  const related = [];
+  const sameTopic = [];
+  const rest = [];
+  for (const item of list) {
+    const linked = Array.isArray(item.related_questions)
+      && item.related_questions.some((r) => r === qid || r === answer.key || r === String(answer.number));
+    if (linked) related.push(item);
+    else if (item.topic && answer.chapter_label && item.topic.includes(answer.chapter_label.slice(0, 4))) {
+      sameTopic.push(item);
+    } else rest.push(item);
+  }
+  // Also pull items whose original_question strongly overlaps current label
+  const label = String(answer.label || '').slice(0, 40);
+  for (const item of rest.slice()) {
+    if (label && item.original_question && String(item.original_question).includes(label)) {
+      related.push(item);
+      const i = rest.indexOf(item);
+      if (i >= 0) rest.splice(i, 1);
+    }
+  }
+  const ordered = [...related, ...sameTopic, ...rest];
+  return {
+    linked_to_question: related.slice(0, 30).map(knowledgeCard),
+    additional_program_knowledge: ordered.filter((x) => !related.includes(x)).slice(0, 40).map(knowledgeCard),
+    total_in_program: list.length
+  };
 }
 
 function peopleForProgram(row, latestRows) {
@@ -143,7 +185,7 @@ export function buildContextPacket(row, answer, latestRows = []) {
     }],
     ['תשובות היסטוריות (אינן מאושרות אוטומטית ל־2027)', history.length ? history : undefined],
     ['טיוטה נוכחית', answer.value],
-    ['מידע עובדתי מצטבר', relevantKnowledge(p.knowledge_items, answer)],
+    ['מאגר ידע מצטבר של התוכנית בלבד (אינו תשובה מאושרת ל־2027)', relevantKnowledge(p.knowledge_items, answer)],
     ['הערות ידע חופשיות', pick(p, ['knowledge_notes', 'source_notes', 'historical_notes', 'details', 'syllabus', 'experience', 'recommendations'])],
     ['מפתחים ומפעילים משויכים — ללא פרטי קשר אישיים', peopleForProgram(row, latestRows)],
     ['תשובות קשורות מאותה הגשה', allAnswers

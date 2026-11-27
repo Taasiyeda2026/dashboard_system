@@ -13,12 +13,31 @@ export function createKnowledgeItem(partial = {}) {
     source: String(partial.source || '').trim(),
     source_url: String(partial.source_url || '').trim(),
     source_date: partial.source_date || '',
-    updated_at: now,
+    updated_at: partial.updated_at || now,
     verification_status: VERIFICATION_STATUSES.includes(partial.verification_status)
       ? partial.verification_status
       : 'לא אומת',
     related_questions: Array.isArray(partial.related_questions) ? partial.related_questions : [],
-    notes: String(partial.notes || '').trim()
+    notes: String(partial.notes || '').trim(),
+    // Extended fields for unified / Excel intake (optional on legacy items)
+    topic: String(partial.topic || '').trim(),
+    original_question: String(partial.original_question || '').trim(),
+    info_kind: String(partial.info_kind || '').trim(),
+    source_program_name: String(partial.source_program_name || '').trim(),
+    source_program_names: String(partial.source_program_names || '').trim(),
+    basket_context: String(partial.basket_context || '').trim(),
+    source_question_numbers: String(partial.source_question_numbers || '').trim(),
+    control_notes: String(partial.control_notes || '').trim(),
+    source_occurrences: Number(partial.source_occurrences || 0) || 0,
+    program_id: partial.program_id || null,
+    assignment_status: partial.assignment_status || (partial.program_id ? 'assigned' : ''),
+    program_match_suggestions: Array.isArray(partial.program_match_suggestions)
+      ? partial.program_match_suggestions
+      : [],
+    intake_at: partial.intake_at || '',
+    import_batch_id: String(partial.import_batch_id || '').trim(),
+    is_submission_answer: false,
+    verified_for_2027: partial.verified_for_2027 === true
   };
 }
 
@@ -74,4 +93,22 @@ export function summarizeGaps(payload, answers) {
   }
   if (!payload?.drive_folder_url) gaps.push('לא שויכה תיקיית Google Drive לתוכנית');
   return [...new Set(gaps)];
+}
+
+/** Assign pending knowledge item onto a program list (by moving id). */
+export function assignKnowledgeToProgram(unassigned, programItems, itemId, programId) {
+  const pending = Array.isArray(unassigned) ? [...unassigned] : [];
+  const idx = pending.findIndex((x) => x.id === itemId);
+  if (idx < 0) return { unassigned: pending, programItems: programItems || [] };
+  const item = {
+    ...pending[idx],
+    program_id: programId,
+    assignment_status: 'assigned',
+    updated_at: new Date().toISOString()
+  };
+  pending.splice(idx, 1);
+  return {
+    unassigned: pending,
+    programItems: appendKnowledgeItems(programItems || [], [item])
+  };
 }
