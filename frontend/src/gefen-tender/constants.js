@@ -103,6 +103,37 @@ export const SHAREPOINT_FOLDERS = [
   '11 - טופס מנהלי והצהרות'
 ];
 
+export const RECOMMENDATIONS_FOLDER = '05 - המלצות';
+
+/**
+ * 15 course folders under SharePoint «05 - המלצות», keyed by program record id.
+ * Folder names match the course titles created in SharePoint.
+ */
+export const RECOMMENDATION_FOLDER_BY_PROGRAM = {
+  'p-52279': 'אופק לתעשייה',
+  'p-53828': 'ביומימיקרי - לחטיבות',
+  'p-6089': 'יזמות ביומימיקרי (יסודי)',
+  'p-53819': 'יישומי AI ברפואה ובחקלאות',
+  'p-9545': 'סודות (ויסודות) הבינה המלאכותית',
+  'p-13990': 'התנסות בתעשייה',
+  'p-46091': 'רוקחים עולם - יזמות לעולם הפרמצבטיקה',
+  'p-57646': 'השמיים אינם הגבול',
+  'p-57651': 'טכנולוגיות החלל',
+  'p-67861': 'פורצות דרך',
+  'p-67867': 'מנהיגות ירוקה',
+  'p-960': 'קורס יזמות פרימיום',
+  'p-new-arduino': 'Arduino',
+  'p-new-scratch': 'Scratch (סקראץ׳)',
+  'p-new-app': 'MIT App Inventor'
+};
+
+export function recommendationsFolderUrl(programId, title = '') {
+  const folderName = RECOMMENDATION_FOLDER_BY_PROGRAM[programId] || title;
+  if (!folderName) return '';
+  const path = `${RECOMMENDATIONS_FOLDER}/${folderName}`;
+  return `${SHAREPOINT_BASE}/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 export const EXCEL_FORMS = [
   { code: 159, title: 'ניסיון מפתחים', file: 'NISAYON_MEFATCHIM_159 (4).XLSX', kind: 'developers' },
   { code: 160, title: 'ניסיון מפעילים', file: 'NISAYON_MAFIILIM_160 (1).XLSX', kind: 'operators' },
