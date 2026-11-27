@@ -130,7 +130,7 @@ function managementTilesHtml() {
   const tiles = [
     isAdmin && tileButton({
       title: 'מכרז גפן 2027',
-      description: 'הגשה מנהלית, תוכניות ומסמכי המכרז',
+      description: 'הגשה למכרז',
       icon: 'control'
     }).replace('class="admin-management-tile"', 'class="admin-management-tile" data-gefen-tender-open="true"'),
     '<div data-budget-entry hidden></div>',
