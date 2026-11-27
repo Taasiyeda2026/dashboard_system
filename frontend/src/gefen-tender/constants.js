@@ -107,24 +107,24 @@ export const RECOMMENDATIONS_FOLDER = '05 - המלצות';
 
 /**
  * 15 course folders under SharePoint «05 - המלצות», keyed by program record id.
- * Folder names match the course titles created in SharePoint.
+ * Folder names must match SharePoint exactly — do not rename or invent folders.
  */
 export const RECOMMENDATION_FOLDER_BY_PROGRAM = {
-  'p-52279': 'אופק לתעשייה',
+  'p-6089': 'ביומימיקרי (יסודי)',
   'p-53828': 'ביומימיקרי - לחטיבות',
-  'p-6089': 'יזמות ביומימיקרי (יסודי)',
+  'p-960': 'פרימיום',
+  'p-9545': 'בינה מלאכותית (סודות ויסודות)',
   'p-53819': 'יישומי AI ברפואה ובחקלאות',
-  'p-9545': 'סודות (ויסודות) הבינה המלאכותית',
-  'p-13990': 'התנסות בתעשייה',
-  'p-46091': 'רוקחים עולם - יזמות לעולם הפרמצבטיקה',
-  'p-57646': 'השמיים אינם הגבול',
   'p-57651': 'טכנולוגיות החלל',
-  'p-67861': 'פורצות דרך',
   'p-67867': 'מנהיגות ירוקה',
-  'p-960': 'קורס יזמות פרימיום',
+  'p-67861': 'פורצות דרך',
+  'p-46091': 'רוקחים עולם',
+  'p-27342': 'משחקי קופסה',
+  'p-new-app': 'MIT App Inventor',
   'p-new-arduino': 'Arduino',
+  'p-new-microbit': 'micro-bit',
   'p-new-scratch': 'Scratch (סקראץ׳)',
-  'p-new-app': 'MIT App Inventor'
+  'p-new-photonics': 'פוטוניקה'
 };
 
 export function recommendationsFolderUrl(programId, title = '') {

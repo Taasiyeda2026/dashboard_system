@@ -207,9 +207,21 @@ export function buildContextPacket(row, answer, latestRows = []) {
     ['השאלה — נוסח רשמי', answer.label],
     ['מה נדרש לכלול בתשובה', q.requirements ?? meta.requirements ?? answer.requirements],
     ['מגבלות ופורמט', {
-      character_limit: answer.limit || 'לא אומתה מגבלה במקורות הנגישים',
+      answer_type: answer.answer_type || q.answer_type || null,
+      character_limit: answer.limit || q.limit || 'אין מגבלת תווים במקור לשאלה זו',
       word_limit: answer.limit_words || q.limit_words || null,
-      current_words: countWords(answer.value),
+      limit_applies_to: answer.limit_applies_to || q.limit_applies_to
+        || ((answer.extra_text || q.extra_text) && answer.limit ? 'extra' : 'answer'),
+      current_choice: answer.extra_text || q.extra_text ? (answer.answer ?? null) : undefined,
+      current_extra_or_answer: (answer.extra_text || q.extra_text)
+        ? (answer.answer_extra || '')
+        : answer.value,
+      current_chars: String(
+        (answer.extra_text || q.extra_text) ? (answer.answer_extra || '') : (answer.value || '')
+      ).length,
+      current_words: countWords(
+        (answer.extra_text || q.extra_text) ? (answer.answer_extra || '') : answer.value
+      ),
       choices: answer.choices || 'לא הוגדרו אפשרויות',
       multiple: Boolean(answer.multi),
       extra_text: Boolean(answer.extra_text || q.extra_text),

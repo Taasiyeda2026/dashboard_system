@@ -13,12 +13,33 @@ export const CHAPTERS_112 = [
   { id: 'safety', label: 'בטיחות', from: 30, to: 41 }
 ];
 
-const YES_NO_EXTRA = new Set([2, 3, 4, 5, 7, 10]);
+const YES_NO_EXTRA = new Set([2, 3, 4, 5, 7, 10, 31, 33, 36, 37, 38, 39, 40, 41]);
 const YES_NO_CHOICES = ['כן', 'לא'];
 
 export function chapterForNumber(n) {
   const num = Number(n);
   return CHAPTERS_112.find((c) => num >= c.from && num <= c.to) || { id: 'other', label: 'אחר' };
+}
+
+/** True when character limit applies to complementary text, not the choice value. */
+export function limitAppliesToExtra(qOrAnswer) {
+  if (!qOrAnswer) return false;
+  if (qOrAnswer.limit_applies_to === 'extra') return true;
+  if (qOrAnswer.limit_applies_to === 'answer') return false;
+  const n = Number(qOrAnswer.number);
+  if (YES_NO_EXTRA.has(n)) return true;
+  return Boolean(qOrAnswer.extra_text) && Boolean(qOrAnswer.limit)
+    && (qOrAnswer.answer_type === 'yes_no_text' || (qOrAnswer.choices && qOrAnswer.extra_text));
+}
+
+/** Text subject to character / word limits for enforcement and counters. */
+export function limitedAnswerText(qOrAnswer) {
+  if (!qOrAnswer) return '';
+  if (limitAppliesToExtra(qOrAnswer)) return String(qOrAnswer.answer_extra ?? '');
+  if (qOrAnswer.answer != null && qOrAnswer.answer !== '') {
+    return Array.isArray(qOrAnswer.answer) ? qOrAnswer.answer.join(', ') : String(qOrAnswer.answer);
+  }
+  return String(qOrAnswer.value ?? '');
 }
 
 export function enrichQuestion112(raw) {
@@ -36,13 +57,19 @@ export function enrichQuestion112(raw) {
   let choices = Array.isArray(raw.choices) ? raw.choices : null;
   let extra_text = Boolean(raw.extra_text);
   if (YES_NO_EXTRA.has(number) || /כן\/לא\s*\+\s*טקסט/.test(String(requirements || ''))) {
-    answer_type = 'yes_no_text';
+    answer_type = answer_type === 'single_choice' && choices && choices.length > 2
+      ? 'yes_no_text'
+      : (answer_type || 'yes_no_text');
+    if (answer_type !== 'yes_no_text' && YES_NO_EXTRA.has(number)) answer_type = 'yes_no_text';
     choices = choices || YES_NO_CHOICES;
     extra_text = true;
   } else if (/כן\/לא/.test(String(requirements || '')) && !choices) {
     answer_type = 'single_choice';
     choices = YES_NO_CHOICES;
   }
+
+  const limit_applies_to = raw.limit_applies_to
+    || (extra_text && YES_NO_EXTRA.has(number) ? 'extra' : 'answer');
 
   const chapter = chapterForNumber(number);
   return {
@@ -57,6 +84,7 @@ export function enrichQuestion112(raw) {
     extra_text,
     limit,
     limit_words,
+    limit_applies_to,
     required: raw.required !== false && !/רשות/.test(String(requirements || '')),
     show_when: raw.show_when || null,
     requirements,

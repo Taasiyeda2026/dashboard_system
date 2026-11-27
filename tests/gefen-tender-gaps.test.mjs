@@ -41,17 +41,17 @@ test('catalog-112 applies types and word limit without inventing labels or char 
   assert.equal(merged[0].label, existing[0].label);
   assert.equal(merged[0].answer, 'טיוטה');
   assert.equal(merged[0].limit_words, 70);
-  assert.equal(merged[0].limit, null);
+  assert.equal(merged[0].limit, 500);
   assert.equal(merged[1].answer_type, 'yes_no_text');
   assert.equal(merged[1].answer_extra, 'פירוט');
-  assert.equal(catalog112Meta().character_limits_status.includes('לא הוזנו'), true);
+  assert.match(catalog112Meta().character_limits_status, /תבנית הגשה|33/);
 });
 
 test('fifteen recommendation folders mapped', () => {
   assert.equal(Object.keys(RECOMMENDATION_FOLDER_BY_PROGRAM).length, 15);
-  const url = recommendationsFolderUrl('p-6089', 'יזמות ביומימיקרי (יסודי)');
+  const url = recommendationsFolderUrl('p-6089');
   assert.match(url, /05%20-%20/);
-  assert.match(url, /encodeURIComponent|%D7%99%D7%96%D7%9E%D7%95%D7%AA|יזמות|05/);
+  assert.match(decodeURIComponent(url), /ביומימיקרי \(יסודי\)/);
 });
 
 test('excel template fill preserves sheet and writes no invented rows when empty', () => {
