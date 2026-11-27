@@ -3,8 +3,9 @@ import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { state } from '../state.js';
 import {
   ADMIN_SECTIONS, ADMIN_STATUSES, BASKETS, EXCEL_FORMS, GOOGLE_DRIVE_PROGRAMS,
-  KNOWLEDGE_TYPES, PROGRAM_DETAIL_FIELDS, SHAREPOINT_BASE, SHAREPOINT_FOLDERS,
-  TABLE, VERIFICATION_STATUSES
+  KNOWLEDGE_TYPES, PROGRAM_DETAIL_FIELDS, RECOMMENDATION_FOLDER_BY_PROGRAM,
+  SHAREPOINT_BASE, SHAREPOINT_FOLDERS, TABLE, VERIFICATION_STATUSES,
+  recommendationsFolderUrl
 } from '../gefen-tender/constants.js';
 import { buildContextPacket } from '../gefen-tender/context-packet.js';
 import {
@@ -12,7 +13,8 @@ import {
   revokeAnswer, withinLimit
 } from '../gefen-tender/final-answers.js';
 import {
-  appendKnowledgeItems, assignKnowledgeToProgram, createKnowledgeItem, knowledgeFromCatalog
+  appendKnowledgeItems, assignKnowledgeToProgram, createKnowledgeItem, knowledgeFromCatalog,
+  isFactualKnowledgeItem, knowledgeContentRole
 } from '../gefen-tender/knowledge.js';
 import {
   appendHistoricalAnswers, historicalForQuestion, parseHistoricalImport
@@ -27,12 +29,13 @@ import {
   BASKET_112, BASKET_112_TITLE, CHAPTERS_112, association112, countWords,
   enrichQuestion112, programsWith112, withinWordLimit
 } from '../gefen-tender/questionnaire-112.js';
+import { applyCatalog112 } from '../gefen-tender/catalog-112.js';
 import { administrativeCompleted, programReadinessRows112 } from '../gefen-tender/readiness.js';
 import { thresholdsPayload } from '../gefen-tender/thresholds-112.js';
 import {
   downloadWorkbook, exportApprovedAnswersWorkbook, exportOfficialFormPackage, officialTemplateLink
 } from '../gefen-tender/excel-forms.js';
-import { templateMeta } from '../gefen-tender/excel-templates.js';
+import { fillTemplateWorkbook, rowsForForm, templateMeta } from '../gefen-tender/excel-templates.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -297,6 +300,20 @@ export async function mountGefenTender(root) {
     });
     p.associations = (p.associations || []).map((a, i) => {
       const ensured = ensureAssociationQuestions(a);
+      if (Number(ensured.code) === BASKET_112 && Array.isArray(ensured.questions) && ensured.questions.length) {
+        const catalogued = applyCatalog112(ensured.questions);
+        return {
+          ...ensured,
+          questions: catalogued.map((q, j) => {
+            const key = `q_${i}_${j}`;
+            const extraKey = `q_${i}_${j}_extra`;
+            const next = { ...q };
+            if (key in v) next.answer = v[key];
+            if (extraKey in v) next.answer_extra = v[extraKey];
+            return next;
+          })
+        };
+      }
       if (Array.isArray(ensured.questions) && ensured.questions.length) {
         return {
           ...ensured,
@@ -316,6 +333,11 @@ export async function mountGefenTender(root) {
       'developers', 'operators', 'drive_folder_url', 'sharepoint_notes'].forEach((k) => {
       if (k in v) p[k] = v[k];
     });
+    if (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] && !p.recommendations_folder_url) {
+      p.recommendations_folder_url = recommendationsFolderUrl(row.id, row.title);
+      p.recommendations_folder_name = RECOMMENDATION_FOLDER_BY_PROGRAM[row.id];
+    }
+    p.thresholds_112 = thresholdsPayload(p.thresholds_112);
     p.developer_ids = [...root.querySelectorAll('[data-dev-id]:checked')].map((x) => x.value);
     p.operator_ids = [...root.querySelectorAll('[data-op-id]:checked')].map((x) => x.value);
     const map = new Map(buildSubmissionAnswers({ ...row, payload: p }).map((a) => [a.key, a.value]));
@@ -513,16 +535,19 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
           <th>כותרת / שאלה</th><th>נושא</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>שיוך 112</th><th>סטטוס</th><th></th>
         </tr></thead><tbody>${items.map((item) => {
           const open = knowledgeOpen === item.id;
+          const role = knowledgeContentRole(item);
+          const factual = isFactualKnowledgeItem(item);
           return `<tr>
             <td>${esc(item.original_question || item.title || '—')}</td>
             <td>${esc(item.topic || '—')}</td>
-            <td>${esc(item.info_kind || item.type || '—')}</td>
+            <td>${esc(item.info_kind || item.type || '—')}${factual ? '' : ` ${statusBadge('לא עובדתי', 'muted')}`}</td>
             <td>${esc(String(item.content || '').slice(0, 80))}${String(item.content || '').length > 80 ? '…' : ''}</td>
             <td>${esc(String(item.source || '').slice(0, 40) || '—')}</td>
             <td>${esc((item.related_questions || []).join(', ') || '—')}</td>
             <td>${statusBadge(item.verification_status || 'לא אומת', item.verification_status === 'אומת' ? 'ok' : 'muted')}</td>
             <td><button type="button" class="gt-btn--sm" data-k-open="${esc(item.id)}">${open ? 'סגירה' : 'פתיחה'}</button></td>
           </tr>${open ? `<tr><td colspan="8"><div class="gt-panel">
+            <p class="gt-header__sub">סיווג תוכן: ${esc(role)}${factual ? '' : ' — לא מוצג ל־ChatGPT כעובדה על התוכנית'}</p>
             ${item.original_question ? `<p><strong>שאלה במקור:</strong> ${esc(item.original_question)}</p>` : ''}
             <pre style="white-space:pre-wrap;margin:0;font:inherit">${esc(item.content)}</pre>
             <p class="gt-header__sub">${esc(item.source || '')}</p>
@@ -616,8 +641,16 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     } else if (programSub === 'historical') {
       body = historicalPanel(p);
     } else if (programSub === 'experience') {
+      const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
+      const hasRecFolder = Boolean(RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url);
       body = field('experience', 'ניסיון בהפעלה', p.experience || '')
-        + field('recommendations', 'המלצות', p.recommendations || '');
+        + field('recommendations', 'המלצות', p.recommendations || '')
+        + `<div class="gt-toolbar" style="margin-top:8px">
+            ${hasRecFolder
+              ? `<a class="gt-btn--sm gt-btn--primary" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a>`
+              : '<span class="gt-badge gt-badge--muted">אין תיקיית המלצות משויכת</span>'}
+            <span class="gt-header__sub">קישור ל־SharePoint בלבד — ללא סריקת תוכן</span>
+          </div>`;
     } else if (programSub === 'people') {
       const people = rows.filter((r) => r.kind === 'operator');
       const dev = new Set(p.developer_ids || []);
@@ -635,17 +668,25 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     } else if (programSub === 'syllabus') {
       body = field('syllabus', 'סילבוס / תוכנית למידה', p.syllabus || '');
     } else {
+      const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       body = field('drive_folder_url', 'תיקיית Google Drive', p.drive_folder_url || '')
         + `<p><a target="_blank" rel="noopener noreferrer" href="${GOOGLE_DRIVE_PROGRAMS}">תיקיית תוכניות תעשיידע</a></p>`
         + field('sharepoint_notes', 'מסמכי SharePoint / קישורים', p.sharepoint_notes || '')
-        + field('source_notes', 'מקורות ואסמכתאות', p.source_notes || '');
+        + field('source_notes', 'מקורות ואסמכתאות', p.source_notes || '')
+        + (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url
+          ? `<p><a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a></p>`
+          : '');
     }
 
+    const recBtn = (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url)
+      ? `<a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title))}" title="תיקיית המלצות">${icon('folder')}המלצות</a>`
+      : '';
     return `<div class="gt-toolbar">
       <button type="button" data-list-back>${icon('chevR')}חזרה לרשימה</button>
       <strong style="font-size:18px;font-weight:600">${esc(row.title)}</strong>
       <span class="gt-header__sub">#${esc(p.number ?? '—')} · שיוך ${a112.association ? BASKET_112 : '—'}</span>
       ${a112.association ? statusBadge(a112.association.status || '—', 'info') : ''}
+      ${recBtn}
       <button type="button" class="gt-btn--primary" data-save-program>${icon('save')}שמירה</button>
       <button type="button" data-goto-submission="${esc(row.id)}">הגשה למכרז</button>
     </div>
@@ -751,20 +792,24 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
         <div class="gt-overflow"><table class="gt-table"><thead><tr>
           <th></th><th>טופס</th><th>מקור</th><th>סטטוס</th><th>פעולות</th>
         </tr></thead><tbody>${EXCEL_FORMS.filter((f) => [159, 160, 174].includes(f.code)).map((f) => {
-          const meta = templateMeta(f.code, {});
-          const ready = Boolean(meta.sharepoint_url || meta.storage_path);
+          const stored = (administrative()?.payload?.excel_templates || {})[f.code] || {};
+          const meta = templateMeta(f.code, stored);
+          const ready = Boolean(meta.uploaded_at || meta.storage_path || stored.base64);
           return `<tr>
             <td>${fileIcon(f.file)}</td>
             <td>${f.code} – ${esc(f.title)}</td>
             <td>תבנית רשמית</td>
-            <td>${ready ? statusBadge('תבנית זמינה', 'ok') : statusBadge('טרם הועלתה תבנית', 'muted')}</td>
+            <td>${ready ? statusBadge('תבנית הועלתה', 'ok') : statusBadge('טרם הועלתה תבנית', 'muted')}</td>
             <td>
               <a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${officialTemplateLink(f)}">${icon('link')}תבנית מקור</a>
-              <button type="button" class="gt-btn--sm" data-export-form-global="${f.code}" ${ready ? '' : 'title="מילוי זמין לאחר העלאת תבנית"'}>${icon('download')}חבילת נתונים</button>
+              <button type="button" class="gt-btn--sm" data-upload-template="${f.code}">${icon('upload')}העלאת תבנית</button>
+              <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-template-file="${f.code}" hidden>
+              <button type="button" class="gt-btn--sm" data-fill-template="${f.code}" ${ready ? '' : 'disabled title="מילוי זמין לאחר העלאת תבנית"'}>${icon('download')}הפקת קובץ</button>
+              <button type="button" class="gt-btn--sm" data-export-form-global="${f.code}">${icon('download')}חבילת נתונים</button>
             </td>
           </tr>`;
         }).join('')}</tbody></table></div>
-        <p class="gt-header__sub">אין לייצר קבצי Excel רשמיים במקום התבניות. פעולות מילוי/הורדה סופית זמינות רק לאחר העלאת תבנית מקור.</p>
+        <p class="gt-header__sub">אין לייצר קבצי Excel רשמיים במקום התבניות. העלאת תבנית מקור → מילוי הדרגתי → הפקה תוך שמירת מבנה התבנית. בשלב זה לא ממלאים נתוני ניסיון/מפתחים/מפעילים/סילבוס בפועל.</p>
       </div>`;
   }
 
@@ -780,6 +825,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       <span class="gt-badge gt-badge--warn">טיוטות ${pending}</span>
       <span class="gt-badge gt-badge--ok">תשובות מאושרות ${ready}</span>
       <span class="gt-badge gt-badge--muted">מנהלי ${adminDone}/19</span>
+      <button type="button" class="gt-btn--sm" data-apply-catalog-112>החלת קטלוג 112</button>
       <small>אחוז מילוי אינו שווה ערך לעמידה בתנאי סף</small>
     </div>
     <div class="gt-overflow"><table class="gt-table"><thead><tr>
@@ -1022,7 +1068,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-import-hist-text],[data-filter-admin],[data-filter-program]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1314,6 +1360,46 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       downloadWorkbook(XLSX, wb, `form-${t.dataset.exportFormGlobal}-package.xlsx`);
       return;
     }
+    if (t.matches('[data-upload-template]')) {
+      const code = t.dataset.uploadTemplate;
+      root.querySelector(`[data-template-file="${code}"]`)?.click();
+      return;
+    }
+    if (t.matches('[data-fill-template]')) {
+      const code = Number(t.dataset.fillTemplate);
+      const admin = administrative();
+      const stored = admin?.payload?.excel_templates?.[code];
+      if (!admin || !stored?.base64) { setStatus('יש להעלות תבנית מקור תחילה', 'warn'); return; }
+      const XLSX = await import('xlsx');
+      const bin = Uint8Array.from(atob(stored.base64), (c) => c.charCodeAt(0));
+      // Empty rows only — do not fill developers/operators/syllabus in this stage.
+      const wb = fillTemplateWorkbook(XLSX, bin.buffer, stored.mapping || templateMeta(code).mapping, []);
+      downloadWorkbook(XLSX, wb, `form-${code}-draft-empty.xlsx`);
+      toast('הופק קובץ על בסיס התבנית (ללא מילוי נתונים)');
+      return;
+    }
+    if (t.matches('[data-apply-catalog-112]')) {
+      let ok = 0;
+      for (const prog of programsWith112(rows)) {
+        const { index, association } = association112(prog.payload);
+        if (index < 0 || !association?.questions?.length) continue;
+        const questions = applyCatalog112(association.questions);
+        const associations = [...(prog.payload.associations || [])];
+        associations[index] = { ...association, questions };
+        const payload = {
+          ...prog.payload,
+          associations,
+          thresholds_112: thresholdsPayload(prog.payload.thresholds_112),
+          recommendations_folder_url: prog.payload.recommendations_folder_url
+            || (RECOMMENDATION_FOLDER_BY_PROGRAM[prog.id]
+              ? recommendationsFolderUrl(prog.id, prog.title) : prog.payload.recommendations_folder_url)
+        };
+        if (await saveViaRpc(prog, payload, 'save_payload')) ok += 1;
+      }
+      toast(`עודכן קטלוג 112 ב־${ok} תוכניות`);
+      draw();
+      return;
+    }
   };
 
   root.onchange = (ev) => {
@@ -1356,6 +1442,45 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
           draw();
         } catch (e) {
           setStatus(`ייבוא נכשל: ${e.message}`, 'err');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+    if (t.matches('[data-template-file]') && t.files?.[0]) {
+      const code = Number(t.dataset.templateFile);
+      const file = t.files[0];
+      const admin = administrative();
+      if (!admin) { setStatus('רשומת מנהל חסרה', 'warn'); return; }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const bytes = new Uint8Array(reader.result);
+          let binary = '';
+          bytes.forEach((b) => { binary += String.fromCharCode(b); });
+          const base64 = btoa(binary);
+          const excel_templates = {
+            ...(admin.payload?.excel_templates || {}),
+            [code]: {
+              ...templateMeta(code, admin.payload?.excel_templates?.[code] || {}),
+              file_name: file.name,
+              uploaded_at: new Date().toISOString(),
+              base64,
+              mapping: templateMeta(code).mapping,
+              mapping_verified: false
+            }
+          };
+          // Keep base64 under a practical size for JSONB admin payload.
+          if (base64.length > 2_500_000) {
+            setStatus('הקובץ גדול מדי לשמירה במערכת — יש להשתמש בתבנית קלה יותר', 'warn');
+            return;
+          }
+          if (await saveViaRpc(admin, { ...admin.payload, excel_templates }, 'save_payload')) {
+            toast(`תבנית ${code} הועלתה`);
+            draw();
+          }
+        } catch (e) {
+          setStatus(`העלאת תבנית נכשלה: ${e.message}`, 'err');
         }
       };
       reader.readAsArrayBuffer(file);

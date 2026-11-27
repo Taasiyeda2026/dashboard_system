@@ -99,6 +99,32 @@ export function summarizeGaps(payload, answers) {
   return [...new Set(gaps)];
 }
 
+/** Non-factual intake kinds — kept in the bank but never presented as program facts. */
+const NON_FACTUAL_KIND = /אפשרויות בחירה|ללא בחירה|הערת עבודה|חזרה על השאלה|ללא תשובה|אזכור מסמך|הפניה לתשובה/;
+
+export function knowledgeContentRole(item) {
+  if (!item) return 'unknown';
+  if (item.content_role) return item.content_role;
+  if (item.assignment_status === 'inactive') return 'inactive';
+  const kind = String(item.info_kind || '');
+  if (/אפשרויות בחירה|ללא בחירה/.test(kind)) return 'choice_blank';
+  if (/הערת עבודה/.test(kind)) return 'work_note';
+  if (/חזרה על השאלה|ללא תשובה/.test(kind)) return 'question_echo';
+  if (/אזכור מסמך/.test(kind)) return 'document_mention';
+  if (/הפניה לתשובה/.test(kind)) return 'cross_reference';
+  if (/בחירה היסטורית/.test(kind)) return 'historical_choice';
+  if (/תשובה|מידע\s*\/\s*תשובה/.test(kind) || item.type === 'תשובה היסטורית') return 'factual';
+  if (NON_FACTUAL_KIND.test(kind)) return 'non_factual';
+  return 'factual';
+}
+
+/** True when the item may be used as program knowledge in ChatGPT packets. */
+export function isFactualKnowledgeItem(item) {
+  if (!item || item.assignment_status === 'inactive') return false;
+  const role = knowledgeContentRole(item);
+  return role === 'factual' || role === 'historical_choice';
+}
+
 /** Pending = awaiting program assignment. Inactive items stay in the bank but are not pending. */
 export function isKnowledgePending(item) {
   if (!item) return false;
