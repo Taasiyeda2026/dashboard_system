@@ -2,12 +2,14 @@ import { VERIFICATION_STATUSES } from './constants.js';
 
 export function createKnowledgeItem(partial = {}) {
   const now = new Date().toISOString();
+  const content = String(partial.content || '').trim();
   return {
     id: partial.id || (typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : `k-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+    title: String(partial.title || '').trim() || content.slice(0, 80),
     type: partial.type || 'עובדה',
-    content: String(partial.content || '').trim(),
+    content,
     source: String(partial.source || '').trim(),
     source_url: String(partial.source_url || '').trim(),
     source_date: partial.source_date || '',

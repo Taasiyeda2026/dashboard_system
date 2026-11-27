@@ -1,5 +1,8 @@
 import { BASKETS, PROGRAM_DETAIL_FIELDS } from './constants.js';
 import { answerText } from './final-answers.js';
+import {
+  BASKET_112, displayAnswerValue, enrichQuestion112
+} from './questionnaire-112.js';
 
 /**
  * Questionnaire catalog.
@@ -59,7 +62,7 @@ export function documentQuestions() {
 export function basketQuestionnaireMeta(code) {
   const expected = {
     106: { expected_min: null, note: 'מיפוי שאלון תת־סל 106 טרם אומת מול צילומי מסך / מסמכי המכרז.' },
-    112: { expected_min: 41, note: 'במסמך שאלות STEM דווח על 41 שאלות לתת־סל 112 — נוסח רשמי טרם יובא למערכת.' },
+    112: { expected_min: 41, note: 'תת־סל 112: 41 שאלות קיימות במערכת. מיפוי מול מקור רשמי — יש לאמת לפני סימון mapping_verified.' },
     114: { expected_min: null, note: 'מיפוי שאלון תת־סל 114 טרם אומת מול המקור הרשמי.' },
     706: { expected_min: 5, note: 'במסמך שאלות STEM דווח על 5 שאלות למסגרת STEM ו־18 קריטריונים בחמש קבוצות — נוסח רשמי טרם יובא.' }
   }[Number(code)] || { expected_min: null, note: 'מיפוי שאלון טרם אומת.' };
@@ -109,10 +112,20 @@ export function parseQuestionnaireImport(text, questionnaire) {
 export function ensureAssociationQuestions(association) {
   const a = { ...association, code: Number(association.code) };
   if (Array.isArray(a.questions) && a.questions.length) {
-    a.questions = a.questions.map((q, i) => ({
-      ...normalizeImportedQuestion(q, i, String(a.code)),
-      answer: q.answer ?? ''
-    }));
+    if (a.code === BASKET_112) {
+      a.questions = a.questions.map((q, i) => enrichQuestion112({
+        ...q,
+        number: q.number ?? i + 1,
+        answer: q.answer ?? '',
+        answer_extra: q.answer_extra ?? ''
+      }));
+    } else {
+      a.questions = a.questions.map((q, i) => ({
+        ...normalizeImportedQuestion(q, i, String(a.code)),
+        answer: q.answer ?? '',
+        answer_extra: q.answer_extra ?? ''
+      }));
+    }
     a.mapping_verified = a.mapping_verified === true && a.questions.every((q) => q.mapping_verified);
     return a;
   }
@@ -170,21 +183,32 @@ export function buildSubmissionAnswers(row) {
       return;
     }
     a.questions.forEach((q, j) => {
+      const enriched = a.code === BASKET_112 ? enrichQuestion112(q) : q;
       answers.push({
         key: `association.${i}.${j}`,
-        question_id: q.id,
-        group,
-        label: q.label,
-        value: answerText(q.answer),
-        limit: q.limit,
-        choices: q.choices,
-        multi: q.multi,
-        mapping_verified: q.mapping_verified === true,
+        question_id: enriched.id,
+        number: enriched.number,
+        group: a.code === BASKET_112
+          ? (enriched.chapter_label || group)
+          : group,
+        label: enriched.label,
+        value: a.code === BASKET_112 ? displayAnswerValue(enriched) : answerText(enriched.answer),
+        limit: enriched.limit,
+        limit_words: enriched.limit_words || null,
+        choices: enriched.choices,
+        multi: enriched.multi,
+        answer_type: enriched.answer_type,
+        extra_text: enriched.extra_text,
+        answer_extra: enriched.answer_extra || '',
+        mapping_verified: enriched.mapping_verified === true,
         code: a.code,
-        requirements: q.requirements,
-        criteria: q.professional_criteria,
-        conditions: q.threshold_conditions,
-        source: q.source
+        requirements: enriched.requirements,
+        criteria: enriched.professional_criteria,
+        conditions: enriched.threshold_conditions,
+        attachments: enriched.attachments,
+        source: enriched.source,
+        chapter_id: enriched.chapter_id,
+        chapter_label: enriched.chapter_label
       });
     });
   });
