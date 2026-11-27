@@ -13,7 +13,8 @@ const opts=(values,current)=>values.map(v=>'<option value="'+esc(v)+'"'+(v===cur
 export async function mountGefenTender(root) {
  if(!root||!admin())return;
  root.innerHTML='<p role="status">טוען נתונים...</p>';
- let rows=[],tab='administrative',selected='',busy=false,submissionId='';
+ let rows=[],tab='administrative',selected='',busy=false,submissionId='',dirty=false;
+ const pending=()=>{if(!dirty)return true;return window.confirm('קיימים שינויים שלא נשמרו. לצאת ללא שמירה?');};
  const get=()=>rows.find(r=>r.id===selected);
  const administrative=()=>rows.find(r=>r.kind==='administrative');
  const completed=()=>Object.values(administrative()?.payload?.sections||{}).filter(x=>x.status===STATUSES[5]).length;
@@ -29,11 +30,12 @@ export async function mountGefenTender(root) {
  try{
  const {data,error}=await supabase.from(TABLE).update({payload,revision:row.revision+1,updated_at:new Date().toISOString()}).eq('id',row.id).eq('revision',row.revision).select().maybeSingle();
  if(error)throw error;if(!data)throw Error('הרשומה השתנתה. יש לטעון מחדש.');
- Object.assign(row,data);status.textContent='נשמר';return true;
+ Object.assign(row,data);dirty=false;status.textContent='נשמר';return true;
  }catch(e){status.textContent='השמירה נכשלה: '+e.message;return false;}finally{busy=false;enabled.forEach(e=>e.disabled=false);}
  };
 
  const answerText=v=>Array.isArray(v)?v.join(', '):String(v??'');
+ const knowledgeHtml=p=>'<h3>מאגר ידע מצטבר</h3>'+field('knowledge_notes','מידע עובדתי, תכנים וניסיון',p.knowledge_notes)+field('source_notes','מקורות ואסמכתאות — קישור, תאריך, סטטוס אימות',p.source_notes)+field('historical_notes','תשובות קודמות — נוסח ומקור',p.historical_notes);
  function submissionAnswers(row){
  const p=row.payload;
  return [
@@ -59,7 +61,7 @@ export async function mountGefenTender(root) {
  ['תנאי סף וקריטריוני הערכה',{question:q.conditions??meta.conditions,association:association?.conditions,criteria:q.criteria??meta.criteria,source:q.source??meta.source}],
  ['תשובות היסטוריות',history.length?history:undefined],
  ['טיוטה נוכחית',a.value],
- ['מידע מצטבר על התוכנית',pick(p,['details','syllabus','experience','recommendations','knowledge','facts','materials','documents','evidence','sources'])],
+ ['מידע מצטבר על התוכנית',pick(p,['details','syllabus','experience','recommendations','knowledge','facts','materials','documents','evidence','sources','knowledge_notes','source_notes','historical_notes'])],
  ['שיוכים קיימים',(p.associations||[]).map(x=>pick(x,['code','status','validity','conditions','criteria','source']))],
  ['מפתחים ומפעילים משויכים — ללא פרטי קשר אישיים',people.length?people:undefined],
  ['תשובות אחרות באותה תוכנית',submissionAnswers(row).filter(x=>x.key!==a.key&&x.value.trim()).map(x=>({question:x.label,answer:x.value,approved:isFinal(row,x)}))],
@@ -100,20 +102,21 @@ export async function mountGefenTender(root) {
  const p=row.payload;
  html='<div class="gt-toolbar"><button data-list-back>חזרה לרשימה</button><h3>'+esc(row.title)+'</h3></div><div class="gt-list">';
  if(tab==='program'){
- html+='<p>מספר תוכנית: '+esc(p.number??'תוכנית חדשה')+'</p><p>סל מענים: 1 – מענים פדגוגיים ורגשיים</p>'+FIELDS.map(([k,l,lim,choices,multi])=>field(k,l,p.details?.[k]??(k==='name'?row.title:''),lim,choices,multi)).join('');
- html+='<h3>שיוכים והגשות</h3>'+(p.associations||[]).map((a,i)=>'<div class="gt-row"><strong>'+a.code+' – '+esc(BASKETS[a.code])+'</strong><p>'+esc(a.status)+' '+esc(a.validity)+'</p>'+field('answer_'+i,'טיוטת תשובות לשיוך (מיפוי שאלון מלא טרם אומת)',a.answers||'')+'</div>').join('')+field('syllabus','סילבוס',p.syllabus)+field('experience','ניסיון בהפעלה',p.experience)+field('recommendations','המלצות',p.recommendations)+field('developers','מפתחים',p.developers)+field('operators','מפעילים',p.operators);
- }else{html+=link('06 - מפתחים ומפעילים/'+p.folder,'תיקיית אסמכתאות')+field('education','השכלה',p.education)+field('experience','ניסיון מקצועי',p.experience)+field('training_hours','שעות הכשרה',p.training_hours??'')+field('training','פירוט הכשרות',p.training)+field('notes','הערות ואסמכתאות חסרות',p.notes);}
+ html+=knowledgeHtml(p);html+='<p>מספר תוכנית: '+esc(p.number??'תוכנית חדשה')+'</p><p>סל מענים: 1 – מענים פדגוגיים ורגשיים</p>'+FIELDS.map(([k,l,lim,choices,multi])=>field(k,l,p.details?.[k]??(k==='name'?row.title:''),lim,choices,multi)).join('');
+ html+='<h3>שיוכים והגשות</h3>'+(p.associations||[]).map((a,i)=>'<div class="gt-row"><strong>'+a.code+' – '+esc(BASKETS[a.code])+'</strong><p>'+esc(a.status)+' '+esc(a.validity)+'</p>'+(Array.isArray(a.questions)&&a.questions.length?a.questions.map((q,j)=>field('q_'+i+'_'+j,q.label,q.answer,q.limit,q.choices,q.multi)).join(''):field('answer_'+i,'טיוטת תשובות לשיוך (מיפוי שאלון מלא טרם אומת)',a.answers||''))+'</div>').join('')+field('syllabus','סילבוס',p.syllabus)+field('experience','ניסיון בהפעלה',p.experience)+field('recommendations','המלצות',p.recommendations)+field('developers','מפתחים',p.developers)+field('operators','מפעילים',p.operators);
+ }else{html+=link('06 - מפתחים ומפעילים/'+p.folder,'תיקיית אסמכתאות')+field('education','השכלה',p.education)+field('experience','ניסיון מקצועי',p.experience)+field('training_hours','שעות הכשרה',p.training_hours??'')+field('training','פירוט הכשרות',p.training)+field('degrees','תארים ותעודות',p.degrees)+field('teaching_experience','ניסיון בהדרכה',p.teaching_experience)+field('cv_url','קישור לקורות חיים',p.cv_url)+field('verified_sources','אסמכתאות שנבדקו',p.verified_sources)+field('eligibility','בדיקת תנאי סף לפי תת סל ותפקיד',p.eligibility)+field('notes','הערות ואסמכתאות חסרות',p.notes);}
  html+='</div><button data-save-record>שמירה</button>';
  }
  }else if(tab==='submission'){html=submissionHtml();
  }else if(tab==='documents'){html='<div class="gt-list">'+['01 - מסמכי המכרז','02 - תבניות וטפסים','03 - רשימת תוכניות ותוקף','04 - חומרי תוכניות','05 - המלצות','06 - מפתחים ומפעילים','07 - ניסיון בהפעלת תוכניות','08 - אישורים ואסמכתאות','09 - הנחיות עבודה','10 - הגשות סופיות','11 - טופס מנהלי והצהרות'].map(n=>'<div class="gt-row">'+link(n,n)+'</div>').join('')+'</div>';}
  else{html='<h3>בקרת מוכנות</h3><p>הגשה מנהלית: '+completed()+' מתוך 19. '+(completed()===19?'כל הסעיפים סומנו כהושלמו.':'טרם מוכנה להגשה.')+'</p><p>שיוכים הדורשים טיפול: '+rows.filter(r=>r.kind==='program').flatMap(r=>r.payload.associations||[]).filter(a=>a.status!=='בתוקף').length+'</p><p>טרם אומתה מוכנות פדגוגית או עמידת מפעילים בתנאי הסף.</p>';}
  root.innerHTML=heading+html+'</div>';
- root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;selected='';draw()});
+ root.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{if(!pending())return;dirty=false;tab=b.dataset.tab;selected='';draw()});
  root.querySelectorAll('[data-select]').forEach(b=>b.onclick=()=>{selected=b.dataset.select;draw()});
- root.querySelector('[data-list-back]')?.addEventListener('click',()=>{selected='';draw()});
+ root.querySelector('[data-list-back]')?.addEventListener('click',()=>{if(!pending())return;dirty=false;selected='';draw()});
  root.querySelector('[data-filter]')?.addEventListener('change',e=>root.querySelectorAll('[data-admin-row]').forEach(x=>x.hidden=e.target.value==='done'?x.dataset.done!=='true':e.target.value==='pending'?x.dataset.done==='true':false));
  root.querySelector('[data-search]')?.addEventListener('input',e=>root.querySelectorAll('[data-list-row]').forEach(x=>x.hidden=!x.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
+ root.querySelector('.gt')?.addEventListener('input',e=>{if(e.target.matches('[data-field],[data-a],[data-multi] input,[data-answer-edit]')){dirty=true;root.querySelector('[data-gt-status]').textContent='שינויים טרם נשמרו';}});
  root.querySelectorAll('[data-field]').forEach(x=>x.oninput=()=>{const c=root.querySelector('[data-count="'+x.dataset.field+'"]');if(c)c.textContent=x.value.length+(x.maxLength>0?' / '+x.maxLength:'')});
  root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(root.querySelector('[data-field="'+b.dataset.copy+'"]').value);root.querySelector('[data-gt-status]').textContent='הועתק';}catch{root.querySelector('[data-gt-status]').textContent='העתקה נכשלה';}});
 
@@ -141,8 +144,8 @@ export async function mountGefenTender(root) {
  root.querySelectorAll('[data-final-toggle]').forEach(b=>b.onclick=async()=>{const a=answers[Number(b.dataset.finalToggle)],f={...sr.payload.final_answers};if(isFinal(sr,a))delete f[a.key];else if(a.value.trim()&&(!a.limit||a.value.length<=a.limit))f[a.key]=a.value;else return;if(await save(sr,{...sr.payload,final_answers:f}))draw()});
  root.querySelector('[data-export-answers]')?.addEventListener('click',async()=>{try{const XLSX=await import('xlsx');const wb=XLSX.utils.book_new();const groups=[...new Set(answers.map(a=>a.group))];for(const g of groups){const entries=answers.filter(a=>a.group===g);const ws=XLSX.utils.aoa_to_sheet([['שאלה','תשובה','תווים','מצב'],...entries.map(a=>[a.label,isFinal(sr,a)?a.value:'',isFinal(sr,a)?a.value.length:'',isFinal(sr,a)?'מאושרת':'להשלמה'])]);ws['!cols']=[{wch:55},{wch:85},{wch:12},{wch:16}];XLSX.utils.book_append_sheet(wb,ws,g.replace(/[\\/?*\[\]:]/g,' ').slice(0,25)+' '+(groups.indexOf(g)+1));}wb.Workbook={Views:[{RTL:true}]};XLSX.writeFile(wb,'תשובות גפן 2027 - '+sr.title.replace(/[\\/?%*:|"<>]/g,'_')+'.xlsx');}catch(e){root.querySelector('[data-gt-status]').textContent='היצוא נכשל: '+e.message;}});
  }
- root.querySelectorAll('[data-save-admin]').forEach(b=>b.onclick=async()=>{const n=b.dataset.saveAdmin,box=b.closest('details'),v={...sections[n]};box.querySelectorAll('[data-a]').forEach(x=>v[x.dataset.a]=x.value);if(v.url||v.template_url){try{for(const url of [v.url,v.template_url].filter(Boolean)){const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='think365orgil.sharepoint.com')throw Error()}}catch{root.querySelector('[data-gt-status]').textContent='יש להזין קישור SharePoint תקין';return;}}if(await save(a,{...a.payload,sections:{...sections,[n]:v}}))draw()});
- root.querySelector('[data-save-record]')?.addEventListener('click',async()=>{const row=get(),v={};root.querySelectorAll('[data-field]').forEach(x=>v[x.dataset.field]=x.value);root.querySelectorAll('[data-multi]').forEach(x=>v[x.dataset.multi]=[...x.querySelectorAll(':checked')].map(c=>c.value));const p={...row.payload};if(tab==='program'){p.details={...p.details};FIELDS.forEach(([k])=>p.details[k]=v[k]);p.associations=p.associations.map((a,i)=>({...a,answers:v['answer_'+i]}));['syllabus','experience','recommendations','developers','operators'].forEach(k=>p[k]=v[k]);const nextAnswers=new Map(submissionAnswers({...row,payload:p}).map(a=>[a.key,a.value]));p.final_answers=Object.fromEntries(Object.entries(p.final_answers||{}).filter(([k,value])=>nextAnswers.get(k)===value));}else Object.assign(p,v);await save(row,p)});
+ root.querySelectorAll('[data-save-admin]').forEach(b=>b.onclick=async()=>{const n=b.dataset.saveAdmin,box=b.closest('details'),v={...sections[n]};box.querySelectorAll('[data-a]').forEach(x=>v[x.dataset.a]=x.value);if(v.url||v.template_url){try{for(const url of [v.url,v.template_url].filter(Boolean)){const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='think365orgil.sharepoint.com')throw Error()}}catch{root.querySelector('[data-gt-status]').textContent='יש להזין קישור SharePoint תקין';return;}}if(await save(a,{...a.payload,sections:{...sections,[n]:v}})){box.querySelector('summary').textContent=n+'. '+ADMIN[Number(n)-1]+' — '+v.status;box.dataset.done=String(v.status===STATUSES[5]);}});
+ root.querySelector('[data-save-record]')?.addEventListener('click',async()=>{const row=get(),v={};root.querySelectorAll('[data-field]').forEach(x=>v[x.dataset.field]=x.value);root.querySelectorAll('[data-multi]').forEach(x=>v[x.dataset.multi]=[...x.querySelectorAll(':checked')].map(c=>c.value));const p={...row.payload};if(tab==='program'){p.details={...p.details};FIELDS.forEach(([k])=>p.details[k]=v[k]);p.associations=(p.associations||[]).map((a,i)=>Array.isArray(a.questions)&&a.questions.length?({...a,questions:a.questions.map((q,j)=>({...q,answer:v['q_'+i+'_'+j]??q.answer}))}):({...a,answers:v['answer_'+i]}));['knowledge_notes','source_notes','historical_notes'].forEach(k=>p[k]=v[k]);['syllabus','experience','recommendations','developers','operators'].forEach(k=>p[k]=v[k]);const nextAnswers=new Map(submissionAnswers({...row,payload:p}).map(a=>[a.key,a.value]));p.final_answers=Object.fromEntries(Object.entries(p.final_answers||{}).filter(([k,value])=>nextAnswers.get(k)===value));}else Object.assign(p,v);await save(row,p)});
  }
  try{const session=await waitForSupabaseAuthSession();if(!session?.access_token||!admin())throw Error('נדרשת התחברות מנהל');const {data,error}=await supabase.from(TABLE).select('*').order('title');if(error)throw error;rows=data||[];if(!administrative())throw Error('נתוני המכרז לא נמצאו');draw();}catch(e){root.textContent='טעינת המכרז נכשלה: '+e.message;}
 }
