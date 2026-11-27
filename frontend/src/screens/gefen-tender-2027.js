@@ -37,6 +37,10 @@ import {
   downloadWorkbook, exportApprovedAnswersWorkbook, exportOfficialFormPackage, officialTemplateLink
 } from '../gefen-tender/excel-forms.js';
 import { fillTemplateWorkbook, rowsForForm, templateMeta } from '../gefen-tender/excel-templates.js';
+import {
+  fileRuleForArea, makeLinkedDocument, normalizeDocuments, primaryDocumentUrl,
+  renderDocumentUploader, uploadGefenDocument, gefenSharePointInvoke
+} from '../gefen-tender/document-upload.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -403,9 +407,12 @@ export async function mountGefenTender(root) {
         <td>${kind}</td>
         <td>${esc(v.expiry || '—')}</td>
         <td>${statusBadge(v.status || ADMIN_STATUSES[0], toneForAdmin(v.status))}</td>
-        <td>${v.url
-          ? `<a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${esc(v.url)}">${icon('link')}${esc(shortUrlLabel(v.url))}</a>`
-          : '<span class="gt-badge gt-badge--muted">טרם הוזן</span>'}</td>
+        <td>${(() => {
+          const docs = normalizeDocuments(v.documents || v.url);
+          const first = docs[0];
+          if (!first?.url) return '<span class="gt-badge gt-badge--muted">טרם הוזן</span>';
+          return `<a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${esc(first.url)}">${icon('link')}${esc(first.name || shortUrlLabel(first.url))}</a>${docs.length > 1 ? ` <span class="gt-badge gt-badge--muted">+${docs.length - 1}</span>` : ''}`;
+        })()}</td>
         <td><button type="button" class="gt-btn--sm" data-admin-edit="${n}">${icon('edit')}עריכה</button></td>
       </tr>
       <tr data-admin-panel="${n}" hidden><td colspan="7">
@@ -413,8 +420,17 @@ export async function mountGefenTender(root) {
           <div class="gt-grid-2">
             <div class="gt-field"><label>סטטוס</label><select data-a="status">${opts(ADMIN_STATUSES, v.status || ADMIN_STATUSES[0])}</select></div>
             ${file ? `<div class="gt-field"><label>תוקף</label><input data-a="expiry" type="date" value="${esc(v.expiry || '')}"></div>` : '<div></div>'}
-            ${file ? `<div class="gt-field"><label>קישור למסמך</label><input data-a="url" type="url" value="${esc(v.url || '')}"></div>` : ''}
             <div class="gt-field"><label>קישור לתבנית</label><input data-a="template_url" type="url" value="${esc(v.template_url || '')}"></div>
+          </div>
+          <div class="gt-field"><label>מסמכים</label>
+            ${renderDocumentUploader({
+              docs: normalizeDocuments(v.documents || v.url),
+              area: 'administrative',
+              scopeKey: `admin:${n}`,
+              sectionNumber: n,
+              allowLink: true
+            })}
+            <small class="gt-header__sub">העלאת מסמך אינה מסמנת את הסעיף כהושלם אוטומטית.</small>
           </div>
           <div class="gt-field"><label>הערות</label><textarea data-a="notes" rows="2">${esc(v.notes || '')}</textarea></div>
           <button type="button" class="gt-btn--primary" data-save-admin="${n}">${icon('save')}שמירה</button>
@@ -633,12 +649,18 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       const hasRecFolder = Boolean(RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url);
       body = field('experience', 'ניסיון בהפעלה', p.experience || '')
-        + field('recommendations', 'המלצות', p.recommendations || '')
+        + `<div class="gt-field"><label>מסמכי ניסיון</label>${renderDocumentUploader({
+          docs: p.experience_documents, area: 'experience', scopeKey: `program:${row.id}:experience_documents`
+        })}</div>`
+        + field('recommendations', 'המלצות (טקסט)', p.recommendations || '')
+        + `<div class="gt-field"><label>מסמכי המלצות</label>${renderDocumentUploader({
+          docs: p.recommendations_documents, area: 'recommendations', scopeKey: `program:${row.id}:recommendations_documents`
+        })}</div>`
         + `<div class="gt-toolbar" style="margin-top:8px">
             ${hasRecFolder
               ? `<a class="gt-btn--sm gt-btn--primary" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a>`
               : '<span class="gt-badge gt-badge--muted">אין תיקיית המלצות משויכת</span>'}
-            <span class="gt-header__sub">קישור ל־SharePoint בלבד — ללא סריקת תוכן</span>
+            <span class="gt-header__sub">העלאה לתיקיית SharePoint של התוכנית — ללא סריקת תוכן</span>
           </div>`;
     } else if (programSub === 'people') {
       const people = rows.filter((r) => r.kind === 'operator');
@@ -660,8 +682,11 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       body = field('drive_folder_url', 'תיקיית Google Drive', p.drive_folder_url || '')
         + `<p><a target="_blank" rel="noopener noreferrer" href="${GOOGLE_DRIVE_PROGRAMS}">תיקיית תוכניות תעשיידע</a></p>`
-        + field('sharepoint_notes', 'מסמכי SharePoint / קישורים', p.sharepoint_notes || '')
-        + field('source_notes', 'מקורות ואסמכתאות', p.source_notes || '')
+        + field('sharepoint_notes', 'הערות מסמכים', p.sharepoint_notes || '')
+        + `<div class="gt-field"><label>מסמכים ואסמכתאות</label>${renderDocumentUploader({
+          docs: p.documents, area: 'evidence', scopeKey: `program:${row.id}:documents`
+        })}</div>`
+        + field('source_notes', 'מקורות ואסמכתאות (טקסט)', p.source_notes || '')
         + (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url
           ? `<p><a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a></p>`
           : '');
@@ -719,11 +744,15 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
         ${field('development_experience', 'ניסיון פיתוח', p.development_experience || '')}
         ${field('recommenders', 'ממליצים', p.recommenders || '')}
         ${field('cv_url', 'קישור לקורות חיים', p.cv_url || '')}
-        ${field('documents', 'מסמכים', p.documents || '')}
         ${field('eligibility', 'התאמה לתנאי סף (תיעוד)', p.eligibility || '')}
         ${field('verification_status', 'סטטוס בדיקה', p.verification_status || '', 0, ['טרם נבדק', 'בתהליך', 'נבדק', 'חסרות אסמכתאות'])}
         ${field('verified_sources', 'מקורות אימות', p.verified_sources || '')}
       </div>
+      <div class="gt-field"><label>מסמכים ואסמכתאות</label>${renderDocumentUploader({
+        docs: normalizeDocuments(p.documents),
+        area: 'operator',
+        scopeKey: `operator:${row.id}`
+      })}</div>
       <p class="gt-header__sub">חוסר במידע אינו מסומן ככישלון או כאי־התאמה לתנאי הסף.</p>`;
     }
 
@@ -762,8 +791,18 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       ['מסמכי מפתחים ומפעילים', SHAREPOINT_FOLDERS.slice(5, 7)],
       ['מסמכי הגשה', SHAREPOINT_FOLDERS.slice(9, 11)]
     ];
+    const program = get()?.kind === 'program' ? get() : programsWith112(rows)[0];
     return `<div class="gt-toolbar"><strong>מנהל מסמכים</strong>
       <a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${SHAREPOINT_BASE}">${icon('folder')}שורש SharePoint</a></div>
+      ${program ? `<div class="gt-panel">
+        <div class="gt-panel__title">העלאת אסמכתאות לתוכנית · ${esc(program.title)}</div>
+        ${renderDocumentUploader({
+          docs: program.payload?.documents,
+          area: 'evidence',
+          scopeKey: `program:${program.id}:documents`
+        })}
+        <p class="gt-header__sub">הקבצים נשמרים בתיקיית SharePoint «08 - אישורים ואסמכתאות». יש לבחור תוכנית בלשונית תוכניות לעבודה על תוכנית אחרת.</p>
+      </div>` : ''}
       ${groups.map(([title, folders]) => `<div class="gt-panel">
         <div class="gt-panel__title">${esc(title)}</div>
         <div class="gt-overflow"><table class="gt-table"><thead><tr>
@@ -1047,6 +1086,128 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     return null;
   }
 
+  function parseDocScope(scopeKey) {
+    const parts = String(scopeKey || '').split(':');
+    if (parts[0] === 'admin') return { kind: 'admin', id: parts[1], field: null };
+    if (parts[0] === 'program') return { kind: 'program', id: parts[1], field: parts[2] || 'documents' };
+    if (parts[0] === 'operator') return { kind: 'operator', id: parts[1] || selected, field: 'documents' };
+    return { kind: parts[0], id: parts[1], field: parts[2] };
+  }
+
+  function docMetaForScope(scopeKey) {
+    const { kind, id, field } = parseDocScope(scopeKey);
+    if (kind === 'admin') {
+      const n = Number(id);
+      return {
+        area: 'administrative',
+        section_number: n,
+        section_label: `${String(n).padStart(2, '0')} - ${ADMIN_SECTIONS[n - 1] || id}`,
+        rule: fileRuleForArea('administrative', n)
+      };
+    }
+    if (kind === 'program') {
+      const program = rows.find((r) => r.id === id) || (get()?.id === id ? get() : null);
+      return {
+        area: field === 'recommendations_documents' ? 'recommendations'
+          : field === 'experience_documents' ? 'experience'
+            : field === 'documents' ? 'evidence' : 'program',
+        field,
+        program_id: program?.id,
+        program_title: program?.title,
+        recommendations_folder: RECOMMENDATION_FOLDER_BY_PROGRAM[program?.id] || program?.payload?.recommendations_folder_name,
+        rule: fileRuleForArea(field === 'recommendations_documents' ? 'recommendations' : 'program')
+      };
+    }
+    if (kind === 'operator') {
+      const operator = rows.find((r) => r.id === id) || get();
+      return {
+        area: 'operator',
+        field: 'documents',
+        person_name: operator?.title,
+        program_title: operator?.title,
+        rule: fileRuleForArea('operator')
+      };
+    }
+    return { area: 'documents', rule: fileRuleForArea('documents') };
+  }
+
+  async function saveDocumentsForScope(scopeKey, docs) {
+    const list = normalizeDocuments(docs);
+    const { kind, id, field } = parseDocScope(scopeKey);
+    if (kind === 'admin') {
+      const a = administrative();
+      if (!a) return false;
+      const section = { ...(a.payload?.sections?.[id] || {}) };
+      section.documents = list;
+      section.url = primaryDocumentUrl(list) || '';
+      return saveViaRpc(a, {
+        ...a.payload,
+        sections: { ...(a.payload?.sections || {}), [id]: section }
+      });
+    }
+    if (kind === 'program') {
+      const row = rows.find((r) => r.id === id);
+      if (!row || row.kind !== 'program') return false;
+      return saveViaRpc(row, { ...row.payload, [field]: list });
+    }
+    if (kind === 'operator') {
+      const row = rows.find((r) => r.id === id);
+      if (!row || row.kind !== 'operator') return false;
+      return saveViaRpc(row, { ...row.payload, documents: list });
+    }
+    return false;
+  }
+
+  function currentDocsForScope(scopeKey) {
+    const { kind, id, field } = parseDocScope(scopeKey);
+    if (kind === 'admin') {
+      const section = administrative()?.payload?.sections?.[id] || {};
+      return normalizeDocuments(section.documents || section.url);
+    }
+    if (kind === 'program') {
+      const row = rows.find((r) => r.id === id);
+      return normalizeDocuments(row?.payload?.[field]);
+    }
+    if (kind === 'operator') {
+      const row = rows.find((r) => r.id === id);
+      return normalizeDocuments(row?.payload?.documents);
+    }
+    return [];
+  }
+
+  async function handleDocFiles(scopeKey, fileList, { replaceIndex = null } = {}) {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    const meta = docMetaForScope(scopeKey);
+    const rule = meta.rule || fileRuleForArea(meta.area, meta.section_number);
+    setStatus('מעלה ל־SharePoint...', '');
+    try {
+      let docs = currentDocsForScope(scopeKey);
+      const uploaded = [];
+      for (const file of files) {
+        uploaded.push(await uploadGefenDocument(file, meta, rule));
+      }
+      if (replaceIndex != null && Number.isInteger(replaceIndex) && docs[replaceIndex]) {
+        const previous = docs[replaceIndex];
+        docs = docs.map((d, i) => (i === replaceIndex ? uploaded[0] : d));
+        if (uploaded.length > 1) docs = docs.concat(uploaded.slice(1));
+        if (previous?.item_id && previous.source === 'upload') {
+          void gefenSharePointInvoke('delete', { item_id: previous.item_id }).catch(() => {});
+        }
+      } else if (rule.multiple === false) {
+        docs = uploaded.slice(0, 1);
+      } else {
+        docs = docs.concat(uploaded);
+      }
+      if (await saveDocumentsForScope(scopeKey, docs)) {
+        toast('המסמך נשמר ב־SharePoint');
+        draw();
+      }
+    } catch (e) {
+      setStatus(`העלאה נכשלה: ${e.message}`, 'err');
+    }
+  }
+
   function applyAnswerToPayload(row, answerIdx, valueObj) {
     const answers = buildSubmissionAnswers(row).filter((a) => a.code === BASKET_112 && !a.unmapped);
     const a = answers[answerIdx];
@@ -1070,7 +1231,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1110,6 +1271,51 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       if (panel) panel.hidden = !panel.hidden;
       return;
     }
+    if (t.matches('[data-doc-pick]')) {
+      const input = root.querySelector(`[data-doc-file="${t.dataset.docPick}"]`);
+      input?.click();
+      return;
+    }
+    if (t.matches('[data-doc-replace]')) {
+      const scope = t.dataset.docReplace;
+      const input = root.querySelector(`[data-doc-file="${scope}"]`);
+      if (input) {
+        input.dataset.replaceIndex = t.dataset.docIndex;
+        input.click();
+      }
+      return;
+    }
+    if (t.matches('[data-doc-unlink]')) {
+      const scope = t.dataset.docUnlink;
+      const idx = Number(t.dataset.docIndex);
+      const docs = currentDocsForScope(scope);
+      const removed = docs[idx];
+      const next = docs.filter((_, i) => i !== idx);
+      if (await saveDocumentsForScope(scope, next)) {
+        if (removed?.item_id && removed.source === 'upload') {
+          void gefenSharePointInvoke('delete', { item_id: removed.item_id }).catch(() => {});
+        }
+        toast('השיוך הוסר');
+        draw();
+      }
+      return;
+    }
+    if (t.matches('[data-doc-link-add]')) {
+      const scope = t.dataset.docLinkAdd;
+      const url = root.querySelector(`[data-doc-link-url="${scope}"]`)?.value;
+      const name = root.querySelector(`[data-doc-link-name="${scope}"]`)?.value;
+      try {
+        const linked = makeLinkedDocument(url, name);
+        const docs = currentDocsForScope(scope).concat([linked]);
+        if (await saveDocumentsForScope(scope, docs)) {
+          toast('הקישור שויך');
+          draw();
+        }
+      } catch (e) {
+        setStatus(e.message, 'warn');
+      }
+      return;
+    }
     if (t.matches('[data-save-admin]')) {
       const a = administrative();
       if (!a) return;
@@ -1117,6 +1323,9 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       const panel = root.querySelector(`[data-admin-panel="${n}"]`);
       const section = { ...(a.payload?.sections?.[n] || {}) };
       panel?.querySelectorAll('[data-a]').forEach((el) => { section[el.dataset.a] = el.value; });
+      // Preserve documents; never auto-mark complete from upload alone.
+      section.documents = normalizeDocuments(section.documents || section.url);
+      section.url = primaryDocumentUrl(section.documents) || section.url || '';
       const payload = {
         ...a.payload,
         sections: { ...(a.payload?.sections || {}), [n]: section }
@@ -1406,6 +1615,16 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
 
   root.onchange = (ev) => {
     const t = ev.target;
+    if (t.matches('[data-doc-file]') && t.files?.length) {
+      const scope = t.dataset.docFile;
+      const replaceIndex = t.dataset.replaceIndex != null && t.dataset.replaceIndex !== ''
+        ? Number(t.dataset.replaceIndex)
+        : null;
+      void handleDocFiles(scope, t.files, { replaceIndex });
+      t.value = '';
+      delete t.dataset.replaceIndex;
+      return;
+    }
     if (t.matches('[data-filter-admin]')) { filterAdmin = t.value; draw(); return; }
     if (t.matches('[data-search-admin]')) { searchAdmin = t.value; draw(); return; }
     if (t.matches('[data-filter-program]')) { filterProgram = t.value; draw(); return; }
@@ -1561,6 +1780,24 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   };
 
   root.oninput = root.onchange;
+
+  root.addEventListener('dragover', (ev) => {
+    const zone = ev.target.closest('[data-doc-drop]');
+    if (!zone) return;
+    ev.preventDefault();
+    zone.classList.add('is-dragover');
+  });
+  root.addEventListener('dragleave', (ev) => {
+    const zone = ev.target.closest('[data-doc-drop]');
+    if (zone) zone.classList.remove('is-dragover');
+  });
+  root.addEventListener('drop', (ev) => {
+    const zone = ev.target.closest('[data-doc-drop]');
+    if (!zone) return;
+    ev.preventDefault();
+    zone.classList.remove('is-dragover');
+    void handleDocFiles(zone.dataset.docDrop, ev.dataTransfer?.files);
+  });
 
   await waitForSupabaseAuthSession();
   const { data, error } = await supabase.from(TABLE).select('*').order('kind').order('title');

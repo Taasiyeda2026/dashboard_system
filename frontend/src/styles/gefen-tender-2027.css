@@ -334,6 +334,84 @@
 }
 .gt-doc-link svg { width: 16px; height: 16px; flex: 0 0 auto; stroke: currentColor; fill: none; stroke-width: 1.75; }
 
+/* Compact SharePoint document uploader */
+.gt-upload {
+  display: grid;
+  gap: 6px;
+  max-width: 720px;
+}
+.gt-upload__drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 0;
+  color: var(--gt-text-2);
+  font-size: 13px;
+  border-bottom: 1px dashed var(--gt-border);
+}
+.gt-upload__drop.is-dragover {
+  color: var(--gt-text);
+  border-bottom-color: var(--gt-accent, #0ea5e9);
+  background: var(--gt-accent-soft);
+}
+.gt-upload__drop small {
+  width: 100%;
+  font-size: 11px;
+  color: var(--gt-text-2);
+}
+.gt-upload__link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.gt-upload__link input {
+  flex: 1 1 160px;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.gt-docs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.gt-docs__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--gt-border);
+  font-size: 13px;
+}
+.gt-docs__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.gt-docs__meta {
+  grid-column: 1;
+  color: var(--gt-text-2);
+  font-size: 11px;
+}
+.gt-docs__actions {
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.gt-docs__empty {
+  color: var(--gt-text-2);
+  font-size: 12px;
+  padding: 2px 0;
+}
+
 .gt-file-icon {
   display: inline-flex;
   width: 18px;
