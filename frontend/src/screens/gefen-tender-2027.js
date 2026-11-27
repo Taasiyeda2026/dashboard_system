@@ -12,11 +12,14 @@ import {
   revokeAnswer, withinLimit
 } from '../gefen-tender/final-answers.js';
 import {
-  appendKnowledgeItems, createKnowledgeItem, knowledgeFromCatalog
+  appendKnowledgeItems, assignKnowledgeToProgram, createKnowledgeItem, knowledgeFromCatalog
 } from '../gefen-tender/knowledge.js';
 import {
   appendHistoricalAnswers, historicalForQuestion, parseHistoricalImport
 } from '../gefen-tender/historical-answers.js';
+import {
+  filterKnowledgeItems, planKnowledgeWorkbook
+} from '../gefen-tender/knowledge-import.js';
 import {
   buildSubmissionAnswers, ensureAssociationQuestions
 } from '../gefen-tender/questionnaires.js';
@@ -150,7 +153,10 @@ export async function mountGefenTender(root) {
   let searchKnowledge = '';
   let filterKnowledgeType = '';
   let filterKnowledgeVer = '';
+  let filterKnowledgeTopic = '';
   let knowledgeOpen = '';
+  let showUnassigned = false;
+  let importPreview = null;
   let filterQ = '';
   let searchQ = '';
   let toastTimer = null;
@@ -451,42 +457,94 @@ export async function mountGefenTender(root) {
   }
 
   function knowledgePanel(p) {
-    let items = p.knowledge_items || [];
-    if (searchKnowledge) {
-      const q = searchKnowledge.trim().toLowerCase();
-      items = items.filter((i) => `${i.title || ''} ${i.content || ''} ${i.source || ''}`.toLowerCase().includes(q));
+    const admin = administrative();
+    const unassigned = admin?.payload?.unassigned_knowledge_items || [];
+    const topics = [...new Set((p.knowledge_items || []).map((i) => i.topic).filter(Boolean))];
+    let items = filterKnowledgeItems(p.knowledge_items || [], {
+      search: searchKnowledge,
+      topic: filterKnowledgeTopic,
+      type: filterKnowledgeType,
+      verification: filterKnowledgeVer
+    });
+    if (showUnassigned) {
+      items = filterKnowledgeItems(unassigned, {
+        search: searchKnowledge,
+        topic: filterKnowledgeTopic,
+        type: filterKnowledgeType,
+        verification: filterKnowledgeVer
+      });
     }
-    if (filterKnowledgeType) items = items.filter((i) => i.type === filterKnowledgeType);
-    if (filterKnowledgeVer) items = items.filter((i) => i.verification_status === filterKnowledgeVer);
+    const programOptions = rows.filter((r) => r.kind === 'program')
+      .map((r) => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('');
+
     return `<div class="gt-toolbar">
       <input type="search" data-search-knowledge placeholder="חיפוש במאגר" value="${esc(searchKnowledge)}">
+      <select data-filter-k-topic><option value="">כל הנושאים</option>${
+        topics.map((t) => `<option value="${esc(t)}"${filterKnowledgeTopic === t ? ' selected' : ''}>${esc(t)}</option>`).join('')
+      }</select>
       <select data-filter-k-type><option value="">כל הסוגים</option>${opts(KNOWLEDGE_TYPES, filterKnowledgeType)}</select>
       <select data-filter-k-ver><option value="">כל הסטטוסים</option>${opts(VERIFICATION_STATUSES, filterKnowledgeVer)}</select>
       <button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>${icon('edit')}הוספת מידע</button>
       <button type="button" class="gt-btn--sm" data-import-catalog>ייבוא מקטלוג</button>
+      <button type="button" class="gt-btn--sm" data-import-knowledge-xlsx>${icon('upload')}ייבוא Excel</button>
+      <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-knowledge-xlsx-file hidden>
+      <button type="button" class="gt-btn--sm" data-toggle-unassigned aria-current="${showUnassigned}">
+        ממתינים לשיוך (${unassigned.length})
+      </button>
+      <strong>${items.length} פריטים</strong>
     </div>
+    <p class="gt-header__sub">מאגר ידע מצטבר בלבד — אינו תשובה מאושרת להגשה 2027.</p>
+    ${importPreview ? `<div class="gt-panel">
+      <div class="gt-panel__title">תצוגה מקדימה לייבוא</div>
+      <p>גיליון: ${esc(importPreview.sheet)} · שורות: ${importPreview.total_rows} · לקליטה: ${importPreview.to_ingest}
+        · משויכים: ${importPreview.assigned_count} · ממתינים: ${importPreview.pending_count}
+        · כפילויות שנמנעו: ${importPreview.duplicates_skipped}</p>
+      <small>גיליונות תוכנית הם תצוגות בלבד ולא נקלטות בנפרד.</small>
+      <div class="gt-toolbar" style="margin-top:8px">
+        <button type="button" class="gt-btn--primary" data-confirm-knowledge-import>קליטת המידע</button>
+        <button type="button" data-cancel-knowledge-import>ביטול</button>
+      </div>
+    </div>` : ''}
     ${!items.length
-      ? `<div class="gt-empty">טרם נוסף מידע. <button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>הוספת מידע</button></div>`
+      ? `<div class="gt-empty">${showUnassigned ? 'אין פריטים ממתינים לשיוך.' : 'טרם נוסף מידע.'}
+button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>הוספת מידע</button></div>`
       : `<div class="gt-overflow"><table class="gt-table"><thead><tr>
-          <th>כותרת</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>עדכון</th><th>סטטוס</th><th></th>
+          <th>כותרת / שאלה</th><th>נושא</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>שיוך 112</th><th>סטטוס</th><th></th>
         </tr></thead><tbody>${items.map((item) => {
           const open = knowledgeOpen === item.id;
-          return `<tr data-k-open="${esc(item.id)}">
-            <td>${esc(item.title || item.content?.slice(0, 40) || '—')}</td>
-            <td>${esc(item.type)}</td>
+          return `<tr>
+            <td>${esc(item.original_question || item.title || '—')}</td>
+            <td>${esc(item.topic || '—')}</td>
+            <td>${esc(item.info_kind || item.type || '—')}</td>
             <td>${esc(String(item.content || '').slice(0, 80))}${String(item.content || '').length > 80 ? '…' : ''}</td>
-            <td>${esc(item.source || '—')}</td>
-            <td>${fmtDate(item.updated_at)}</td>
+            <td>${esc(String(item.source || '').slice(0, 40) || '—')}</td>
+            <td>${esc((item.related_questions || []).join(', ') || '—')}</td>
             <td>${statusBadge(item.verification_status || 'לא אומת', item.verification_status === 'אומת' ? 'ok' : 'muted')}</td>
             <td><button type="button" class="gt-btn--sm" data-k-open="${esc(item.id)}">${open ? 'סגירה' : 'פתיחה'}</button></td>
-          </tr>${open ? `<tr><td colspan="7"><div class="gt-panel"><pre style="white-space:pre-wrap;margin:0;font:inherit">${esc(item.content)}</pre>
-            <small>${esc(item.source_url || '')}</small></div></td></tr>` : ''}`;
+          </tr>${open ? `<tr><td colspan="8"><div class="gt-panel">
+            ${item.original_question ? `<p><strong>שאלה במקור:</strong> ${esc(item.original_question)}</p>` : ''}
+            <pre style="white-space:pre-wrap;margin:0;font:inherit">${esc(item.content)}</pre>
+            <p class="gt-header__sub">${esc(item.source || '')}</p>
+            ${item.control_notes ? `<p class="gt-header__sub">בקרה: ${esc(item.control_notes)}</p>` : ''}
+            <div class="gt-field"><label>שיוך לשאלות 112 (מופרד בפסיקים, לדוגמה 112.13,112.14)</label>
+              <input data-k-related="${esc(item.id)}" value="${esc((item.related_questions || []).join(','))}">
+            </div>
+            <div class="gt-toolbar">
+              <button type="button" class="gt-btn--sm" data-save-k-related="${esc(item.id)}">שמירת שיוך שאלות</button>
+              ${showUnassigned ? `<label>שיוך לתוכנית
+                <select data-assign-program="${esc(item.id)}"><option value="">בחרו</option>${programOptions}</select>
+              </label>
+              <button type="button" class="gt-btn--primary gt-btn--sm" data-assign-knowledge="${esc(item.id)}">שיוך</button>` : ''}
+            </div>
+          </div></td></tr>` : ''}`;
         }).join('')}</tbody></table></div>`}
     <div class="gt-panel" data-add-knowledge-form hidden>
       <div class="gt-panel__title">הוספת פריט ידע</div>
       <div class="gt-grid-2">
         <div class="gt-field"><label>כותרת</label><input data-k-title></div>
         <div class="gt-field"><label>סוג</label><select data-k-type>${opts(KNOWLEDGE_TYPES, 'עובדה')}</select></div>
+        <div class="gt-field"><label>נושא</label><input data-k-topic></div>
+        <div class="gt-field"><label>שאלה מקורית</label><input data-k-original-q></div>
         <div class="gt-field"><label>מקור</label><input data-k-source></div>
         <div class="gt-field"><label>קישור</label><input data-k-url type="url"></div>
         <div class="gt-field"><label>תאריך מקור</label><input data-k-date type="date"></div>
@@ -963,7 +1021,7 @@ export async function mountGefenTender(root) {
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-import-hist-text],[data-filter-admin],[data-filter-program]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-import-hist-text],[data-filter-admin],[data-filter-program]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1046,12 +1104,17 @@ export async function mountGefenTender(root) {
       const item = createKnowledgeItem({
         title: root.querySelector('[data-k-title]')?.value,
         type: root.querySelector('[data-k-type]')?.value,
+        topic: root.querySelector('[data-k-topic]')?.value,
+        original_question: root.querySelector('[data-k-original-q]')?.value,
         content: root.querySelector('[data-k-content]')?.value,
         source: root.querySelector('[data-k-source]')?.value,
         source_url: root.querySelector('[data-k-url]')?.value,
         source_date: root.querySelector('[data-k-date]')?.value,
         verification_status: root.querySelector('[data-k-ver]')?.value,
-        notes: root.querySelector('[data-k-notes]')?.value
+        notes: root.querySelector('[data-k-notes]')?.value,
+        program_id: row.id,
+        assignment_status: 'assigned',
+        intake_at: new Date().toISOString()
       });
       if (!item.content) { setStatus('נדרש תוכן', 'warn'); return; }
       if (await saveViaRpc(row, { knowledge_items: [item] }, 'append_knowledge')) {
@@ -1066,6 +1129,96 @@ export async function mountGefenTender(root) {
       const items = knowledgeFromCatalog(row.payload?.details || {});
       if (!items.length) { setStatus('אין נתוני קטלוג לייבוא', 'warn'); return; }
       if (await saveViaRpc(row, { knowledge_items: items }, 'append_knowledge')) draw();
+      return;
+    }
+    if (t.matches('[data-import-knowledge-xlsx]')) {
+      root.querySelector('[data-knowledge-xlsx-file]')?.click();
+      return;
+    }
+    if (t.matches('[data-cancel-knowledge-import]')) {
+      importPreview = null;
+      draw();
+      return;
+    }
+    if (t.matches('[data-toggle-unassigned]')) {
+      showUnassigned = !showUnassigned;
+      knowledgeOpen = '';
+      draw();
+      return;
+    }
+    if (t.matches('[data-confirm-knowledge-import]')) {
+      if (!importPreview) return;
+      const admin = administrative();
+      if (!admin) { setStatus('חסרה רשומה מנהלית', 'err'); return; }
+      // Append assigned groups program-by-program, then unassigned on administrative
+      for (const [programId, items] of Object.entries(importPreview.by_program || {})) {
+        const prog = rows.find((r) => r.id === programId);
+        if (!prog || !items.length) continue;
+        const ok = await saveViaRpc(prog, { knowledge_items: items }, 'append_knowledge');
+        if (!ok) return;
+      }
+      if ((importPreview.unassigned || []).length) {
+        const mergedUnassigned = appendKnowledgeItems(
+          admin.payload?.unassigned_knowledge_items || [],
+          importPreview.unassigned
+        );
+        const payload = { ...admin.payload, unassigned_knowledge_items: mergedUnassigned };
+        // Use save_payload so unassigned_knowledge_items persists without touching finals incorrectly
+        const ok = await saveViaRpc(admin, payload, 'save_payload');
+        if (!ok) return;
+      }
+      toast(`נקלטו ${importPreview.to_ingest} פריטים`);
+      importPreview = null;
+      draw();
+      return;
+    }
+    if (t.matches('[data-assign-knowledge]')) {
+      const admin = administrative();
+      const itemId = t.dataset.assignKnowledge;
+      const programId = root.querySelector(`[data-assign-program="${itemId}"]`)?.value;
+      if (!admin || !programId) { setStatus('יש לבחור תוכנית', 'warn'); return; }
+      const prog = rows.find((r) => r.id === programId);
+      if (!prog) return;
+      const moved = assignKnowledgeToProgram(
+        admin.payload?.unassigned_knowledge_items || [],
+        prog.payload?.knowledge_items || [],
+        itemId,
+        programId
+      );
+      const item = moved.programItems.find((x) => x.id === itemId);
+      if (!item) return;
+      if (!(await saveViaRpc(prog, { knowledge_items: [item] }, 'append_knowledge'))) return;
+      const adminPayload = { ...admin.payload, unassigned_knowledge_items: moved.unassigned };
+      if (!(await saveViaRpc(admin, adminPayload, 'save_payload'))) return;
+      toast('שויך');
+      draw();
+      return;
+    }
+    if (t.matches('[data-save-k-related]')) {
+      const itemId = t.dataset.saveKRelated;
+      const raw = root.querySelector(`[data-k-related="${itemId}"]`)?.value || '';
+      const related = raw.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+      if (showUnassigned) {
+        const admin = administrative();
+        if (!admin) return;
+        const list = (admin.payload?.unassigned_knowledge_items || []).map((x) =>
+          x.id === itemId ? { ...x, related_questions: related, updated_at: new Date().toISOString() } : x
+        );
+        if (await saveViaRpc(admin, { ...admin.payload, unassigned_knowledge_items: list }, 'save_payload')) {
+          toast('נשמר');
+          draw();
+        }
+        return;
+      }
+      const row = get();
+      if (!row) return;
+      const list = (row.payload?.knowledge_items || []).map((x) =>
+        x.id === itemId ? { ...x, related_questions: related, updated_at: new Date().toISOString() } : x
+      );
+      if (await saveViaRpc(row, { ...row.payload, knowledge_items: list }, 'save_payload')) {
+        toast('נשמר');
+        draw();
+      }
       return;
     }
     if (t.matches('[data-import-historical]')) {
@@ -1174,6 +1327,39 @@ export async function mountGefenTender(root) {
     if (t.matches('[data-search-knowledge]')) { searchKnowledge = t.value; draw(); return; }
     if (t.matches('[data-filter-k-type]')) { filterKnowledgeType = t.value; draw(); return; }
     if (t.matches('[data-filter-k-ver]')) { filterKnowledgeVer = t.value; draw(); return; }
+    if (t.matches('[data-filter-k-topic]')) { filterKnowledgeTopic = t.value; draw(); return; }
+    if (t.matches('[data-knowledge-xlsx-file]') && t.files?.[0]) {
+      const file = t.files[0];
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const XLSX = await import('xlsx');
+          const programs = rows.filter((r) => r.kind === 'program');
+          const existingByProgram = Object.fromEntries(
+            programs.map((r) => [r.id, r.payload?.knowledge_items || []])
+          );
+          const catalogQuestions = (() => {
+            for (const r of programs) {
+              const a = (r.payload?.associations || []).find((x) => Number(x.code) === 112);
+              if (a?.questions?.length) return a.questions;
+            }
+            return [];
+          })();
+          importPreview = planKnowledgeWorkbook(XLSX, reader.result, {
+            programs,
+            catalogQuestions,
+            existingByProgram,
+            existingUnassigned: administrative()?.payload?.unassigned_knowledge_items || []
+          });
+          setStatus(`תצוגה מקדימה: ${importPreview.to_ingest} לקליטה`, 'ok');
+          draw();
+        } catch (e) {
+          setStatus(`ייבוא נכשל: ${e.message}`, 'err');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
     if (t.matches('[data-submission-select]')) {
       submissionId = t.value;
       questionIndex = 0;
