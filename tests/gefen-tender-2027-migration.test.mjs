@@ -28,3 +28,14 @@ test('save RPC migration enforces admin, revision, append knowledge and token re
   assert.match(migration, /grant execute on function public\.gefen_tender_2027_save/);
   assert.match(migration, /revoke all on function public\.gefen_tender_2027_save/);
 });
+
+test('append_historical migration extends save modes without touching final_answers', async () => {
+  const hist = await readFile(
+    new URL('../supabase/migrations/20261127160000_gefen_tender_append_historical.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(hist, /append_historical/);
+  assert.match(hist, /historical_answers/);
+  assert.match(hist, /final_answers/);
+  assert.match(hist, /p_mode not in \('save_payload', 'set_answers', 'append_knowledge', 'append_historical'\)/);
+});
