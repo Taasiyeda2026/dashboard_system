@@ -7,7 +7,7 @@ import {
   SHAREPOINT_BASE, SHAREPOINT_FOLDERS, TABLE, VERIFICATION_STATUSES,
   recommendationsFolderUrl
 } from '../gefen-tender/constants.js';
-import { buildContextPacket } from '../gefen-tender/context-packet.js';
+import { buildContextPacket, relevantKnowledge } from '../gefen-tender/context-packet.js';
 import {
   approveAnswer, answerText, isFinalAnswer, reconcileFinalAnswers,
   revokeAnswer, withinLimit
@@ -28,7 +28,7 @@ import {
 import {
   BASKET_112, BASKET_112_TITLE, CHAPTERS_112, association112, countWords,
   enrichQuestion112, programsWith112, withinWordLimit,
-  limitAppliesToExtra, limitedAnswerText
+  limitAppliesToExtra, limitedAnswerText, professionalRequirementText
 } from '../gefen-tender/questionnaire-112.js';
 import { applyCatalog112 } from '../gefen-tender/catalog-112.js';
 import { administrativeCompleted, programReadinessRows112 } from '../gefen-tender/readiness.js';
@@ -45,7 +45,7 @@ import {
   normalizeExperienceRecords, emptyExperienceRecord,
   normalizeRecommendationRecords, emptyRecommendationRecord, RECOMMENDATION_STATUSES,
   SYLLABUS_AGE_STAGES, normalizeSyllabusSessions, emptySyllabusSession, reorderSyllabusSessions,
-  historicalAsKnowledgeItems,
+  historicalAsKnowledgeItems, inferAgeStageFromGrades,
   experienceFilled, recommendationsFilled, syllabusFilled, documentsFilled
 } from '../gefen-tender/program-records.js';
 
@@ -124,11 +124,72 @@ function shortUrlLabel(url) {
   if (!url) return '';
   try {
     const u = new URL(url);
+    const file = u.searchParams.get('file');
+    if (file) return decodeURIComponent(file);
     const parts = u.pathname.split('/').filter(Boolean);
-    return parts[parts.length - 1] || u.hostname;
+    const last = parts[parts.length - 1] || u.hostname;
+    return decodeURIComponent(last).slice(0, 48);
   } catch {
     return String(url).slice(0, 28);
   }
+}
+
+function formatCount(current, limit) {
+  const n = Number(current) || 0;
+  const lim = Number(limit) || 0;
+  // LTR isolate so RTL does not reverse "n / limit"
+  return `\u2066${n} / ${lim}\u2069`;
+}
+
+function sourceLinkHtml(source) {
+  const s = String(source || '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) {
+    return `<a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${esc(s)}">${icon('link')}${esc(shortUrlLabel(s))}</a>`;
+  }
+  return esc(s.length > 48 ? `${s.slice(0, 48)}…` : s);
+}
+
+function requirementsBlockHtml(qObj, current) {
+  const reqInfo = professionalRequirementText(qObj || current || {});
+  const conditions = qObj?.threshold_conditions || current?.conditions || '';
+  const criteria = qObj?.professional_criteria || current?.criteria || '';
+  const attachments = qObj?.attachments || current?.attachments || '';
+  const source = qObj?.source || current?.source || '';
+  const verified = qObj?.mapping_verified === true || current?.mapping_verified === true;
+  const lines = [];
+  if (reqInfo.kind === 'professional') {
+    lines.push(`<p><strong>דרישות מקצועיות:</strong> ${esc(reqInfo.text)}</p>`);
+  } else if (reqInfo.kind === 'format_only') {
+    lines.push(`<p><strong>פורמט מענה:</strong> ${esc(reqInfo.format)} <span class="gt-badge gt-badge--muted">אינו דרישה מקצועית</span></p>`);
+    lines.push('<p class="gt-header__sub">דרישה מקצועית מפורטת ממסמכי המכרז — טרם אומתה או לא צוינה במקור.</p>');
+  } else {
+    lines.push('<p><strong>דרישות מקצועיות:</strong> <span class="gt-badge gt-badge--muted">לא צוינו / טרם אומתו</span></p>');
+  }
+  if (conditions && String(conditions).trim() && String(conditions).trim() !== '—') {
+    lines.push(`<p><strong>תנאי סף:</strong> ${esc(conditions)}</p>`);
+  }
+  if (criteria && String(criteria).trim() && String(criteria).trim() !== '—') {
+    lines.push(`<p><strong>קריטריונים:</strong> ${esc(criteria)}</p>`);
+  }
+  if (attachments && String(attachments).trim() && String(attachments).trim() !== '—') {
+    lines.push(`<p><strong>מסמכים:</strong> ${esc(attachments)}</p>`);
+  }
+  if (source) {
+    lines.push(`<p><strong>מקור:</strong> ${sourceLinkHtml(source)} ${verified ? statusBadge('מיפוי אומת', 'ok') : statusBadge('מיפוי טרם אומת', 'muted')}</p>`);
+  }
+  return lines.join('');
+}
+
+function relatedQuestionLabel(id, answers = []) {
+  const raw = String(id || '').trim();
+  if (!raw) return '';
+  const byId = answers.find((a) => String(a.question_id) === raw || String(a.id) === raw || String(a.key) === raw);
+  if (byId?.number) return String(byId.number);
+  const m = raw.match(/112\.(\d+)/);
+  if (m) return m[1];
+  if (/^\d+$/.test(raw)) return raw;
+  return raw.replace(/^112\./, '');
 }
 
 function fileIcon(name = '') {
@@ -180,7 +241,8 @@ export async function mountGefenTender(root) {
   let toastTimer = null;
   let docsListing = null;
   let docsFolderPath = '';
-  let syllabusAge = 'כללי';
+  let syllabusAge = '';
+  let contextPreview = null;
   let peoplePickerQ = '';
   let knowledgeSourceFilter = 'all';
 
@@ -223,12 +285,12 @@ export async function mountGefenTender(root) {
       const lim = Number(limit) || 0;
       const useTextarea = lim > 200;
       if (useTextarea) {
-        const rowsN = lim > 400 ? 5 : 3;
+        const rowsN = lim > 400 ? 4 : 2;
         input = `<textarea rows="${rowsN}"${attr} maxlength="${lim}">${esc(value)}</textarea>` +
-          `<small class="gt-count" data-count="${esc(key)}">${String(value ?? '').length} / ${lim}</small>`;
+          `<small class="gt-count" data-count="${esc(key)}" data-count-limit="${lim}">${formatCount(String(value ?? '').length, lim)}</small>`;
       } else {
         input = `<input type="text"${attr}${lim ? ` maxlength="${lim}"` : ''} value="${esc(value)}">` +
-          (lim ? `<small class="gt-count" data-count="${esc(key)}">${String(value ?? '').length} / ${lim}</small>` : '');
+          (lim ? `<small class="gt-count" data-count="${esc(key)}" data-count-limit="${lim}">${formatCount(String(value ?? '').length, lim)}</small>` : '');
       }
     }
     return `<div class="gt-field"><label>${esc(label)}${limit && Number(limit) > 0 ? ` (עד ${limit} תווים)` : ''}</label>${input}</div>`;
@@ -571,9 +633,10 @@ export async function mountGefenTender(root) {
     const programOptions = rows.filter((r) => r.kind === 'program')
       .map((r) => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('');
 
+    const hasItems = baseItems.length > 0;
     return `<div class="gt-toolbar">
-      <input type="search" data-search-knowledge placeholder="חיפוש במאגר" value="${esc(searchKnowledge)}">
-      <select data-filter-k-topic><option value="">כל הנושאים</option>${
+      ${hasItems || showUnassigned ? `<input type="search" data-search-knowledge placeholder="חיפוש במאגר" value="${esc(searchKnowledge)}">` : ''}
+      ${hasItems ? `<select data-filter-k-topic><option value="">כל הנושאים</option>${
         topics.map((t) => `<option value="${esc(t)}"${filterKnowledgeTopic === t ? ' selected' : ''}>${esc(t)}</option>`).join('')
       }</select>
       <select data-filter-k-type><option value="">כל הסוגים</option>${opts(typeOptions, filterKnowledgeType)}</select>
@@ -582,17 +645,19 @@ export async function mountGefenTender(root) {
         <option value="all"${knowledgeSourceFilter === 'all' ? ' selected' : ''}>כל המקורות</option>
         <option value="current"${knowledgeSourceFilter === 'current' ? ' selected' : ''}>נוכחי</option>
         <option value="historical"${knowledgeSourceFilter === 'historical' ? ' selected' : ''}>היסטורי</option>
-      </select>
-      <button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>${icon('edit')}הוספת מידע</button>
-      <button type="button" class="gt-btn--sm" data-import-catalog>ייבוא מקטלוג</button>
-      <button type="button" class="gt-btn--sm" data-import-knowledge-xlsx>${icon('upload')}ייבוא Excel</button>
+      </select>` : ''}
+      <button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge title="הוספת פריט ידע ידני">${icon('edit')}הוספת מידע</button>
+      <button type="button" class="gt-btn--sm" data-import-catalog title="ייבוא ממיפוי הקטלוג הקיים">ייבוא מקטלוג</button>
+      <button type="button" class="gt-btn--sm" data-import-knowledge-xlsx title="ייבוא מקובץ Excel">${icon('upload')}ייבוא Excel</button>
       <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-knowledge-xlsx-file hidden>
-      <button type="button" class="gt-btn--sm" data-toggle-unassigned aria-current="${showUnassigned}">
-        ממתינים לשיוך (${unassigned.length})
-      </button>
+      ${unassigned.length
+        ? `<button type="button" class="gt-btn--sm" data-toggle-unassigned aria-current="${showUnassigned}">ממתינים לשיוך (${unassigned.length})</button>`
+        : ''}
       <strong>${items.length} פריטים</strong>
     </div>
-    <p class="gt-header__sub">מאגר ידע מצטבר — אינו תשובה מאושרת ל־2027.</p>
+    <details class="gt-details gt-details--compact"><summary>מידע משלים על מאגר הידע</summary>
+      <div class="gt-details__body"><p class="gt-header__sub">מאגר ידע מצטבר בלבד — אינו תשובה מאושרת להגשה 2027. יש להבחין בין מקור מצטבר לבין תשובה מאושרת.</p></div>
+    </details>
     ${importPreview ? `<div class="gt-panel">
       <div class="gt-panel__title">תצוגה מקדימה לייבוא</div>
       <p>גיליון: ${esc(importPreview.sheet)} · שורות: ${importPreview.total_rows} · לקליטה: ${importPreview.to_ingest}
@@ -605,19 +670,22 @@ export async function mountGefenTender(root) {
     </div>` : ''}
     ${!items.length
       ? `<div class="gt-empty">${showUnassigned ? 'אין פריטים ממתינים לשיוך.' : 'טרם נוסף מידע.'}</div>`
-      : `<div class="gt-overflow"><table class="gt-table"><thead><tr>
-          <th>כותרת / שאלה</th><th>נושא</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>שיוך 112</th><th>סטטוס</th><th></th>
+      : `<div class="gt-overflow gt-overflow--sticky"><table class="gt-table gt-table--compact"><thead><tr>
+          <th>כותרת / שאלה</th><th>נושא</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>שאלות</th><th>סטטוס</th><th></th>
         </tr></thead><tbody>${items.map((item) => {
           const open = knowledgeOpen === item.id;
           const factual = isFactualKnowledgeItem(item);
           const hist = Boolean(item._historical || item.type === 'היסטורי' || item.info_kind === 'היסטורי');
+          const related = (item.related_questions || []).map((id) => relatedQuestionLabel(id)).filter(Boolean);
+          const src = String(item.source || '');
+          const srcShort = src.includes('|') ? src.split('|').pop().trim() : (src.length > 36 ? `${src.slice(0, 36)}…` : src);
           return `<tr>
             <td>${esc(item.original_question || item.title || '—')}</td>
             <td>${esc(item.topic || '—')}</td>
             <td>${esc(item.info_kind || item.type || '—')}${hist ? ` ${statusBadge('אינו מאושר ל־2027', 'warn')}` : (factual ? '' : ` ${statusBadge('לא עובדתי', 'muted')}`)}</td>
-            <td>${esc(String(item.content || '').slice(0, 80))}${String(item.content || '').length > 80 ? '…' : ''}</td>
-            <td>${esc(String(item.source || '').slice(0, 40) || '—')}</td>
-            <td>${esc((item.related_questions || []).join(', ') || '—')}</td>
+            <td title="${esc(String(item.content || ''))}">${esc(String(item.content || '').slice(0, 72))}${String(item.content || '').length > 72 ? '…' : ''}</td>
+            <td title="${esc(src)}">${esc(srcShort || '—')}</td>
+            <td>${esc(related.length ? related.join(', ') : '—')}</td>
             <td>${statusBadge(item.verification_status || 'לא אומת', item.verification_status === 'אומת' ? 'ok' : 'muted')}</td>
             <td><button type="button" class="gt-btn--sm" data-k-open="${esc(item.id)}">${open ? 'סגירה' : 'פתיחה'}</button></td>
           </tr>${open ? `<tr><td colspan="8"><div class="gt-panel">
@@ -626,8 +694,8 @@ export async function mountGefenTender(root) {
             <pre style="white-space:pre-wrap;margin:0;font:inherit">${esc(item.content)}</pre>
             <p class="gt-header__sub">${esc(item.source || '')}</p>
             ${item.control_notes ? `<p class="gt-header__sub">בקרה: ${esc(item.control_notes)}</p>` : ''}
-            ${hist ? '' : `<div class="gt-field"><label>שיוך לשאלות 112</label>
-              <input data-k-related="${esc(item.id)}" value="${esc((item.related_questions || []).join(','))}">
+            ${hist ? '' : `<div class="gt-field"><label>שיוך לשאלות 112 (מספרים)</label>
+              <input data-k-related="${esc(item.id)}" value="${esc(related.join(','))}" placeholder="לדוגמה: 1,12,27">
             </div>
             <div class="gt-toolbar">
               <button type="button" class="gt-btn--sm" data-save-k-related="${esc(item.id)}">שמירת שיוך שאלות</button>
@@ -704,18 +772,33 @@ export async function mountGefenTender(root) {
     ];
     let body = '';
     if (programSub === 'details') {
-      body = `<p class="gt-header__sub">מספר: ${esc(p.number ?? 'תוכנית חדשה')} · סל מענים: 1</p>
-        <div class="gt-grid-2">${PROGRAM_DETAIL_FIELDS.map(([k, l, lim, choices, multi]) =>
+      const researchVal = p.details?.research;
+      const researchHint = researchVal === 'כן'
+        ? '<p class="gt-header__sub">מסמך מחקר אקדמי מסומן כנדרש — יש לצרף מסמך בלשונית מסמכים אם קיים.</p>'
+        : '<p class="gt-header__sub">מסמך מחקר אקדמי: בורר ״כן/לא״ לפי טופס ההגשה. אין להמציא דרישת צירוף אם לא סומן.</p>';
+      body = `<div class="gt-grid-2 gt-grid-2--dense">${PROGRAM_DETAIL_FIELDS.map(([k, l, lim, choices, multi]) =>
           field(k, l, p.details?.[k] ?? (k === 'name' ? row.title : ''), lim, choices, multi)
         ).join('')}</div>
+        ${researchHint}
         <div class="gt-panel"><div class="gt-panel__title">שיוכים</div>
           ${(p.associations || []).map((raw) => {
             const assoc = ensureAssociationQuestions(raw);
-            return `<div style="margin-bottom:8px"><strong>${assoc.code} – ${esc(BASKETS[assoc.code] || '')}</strong>
-              ${statusBadge(assoc.status || '—', 'info')} ${esc(assoc.validity || '')}
-              · מיפוי: ${assoc.mapping_verified === true ? statusBadge('אומת', 'ok') : statusBadge('טרם אומת', 'muted')}
-              ${assoc.code === BASKET_112 && assoc.questions?.length ? ` · ${assoc.questions.length} שאלות` : ''}
-              ${assoc.mapping_note ? `<div class="gt-header__sub">${esc(assoc.mapping_note)}</div>` : ''}
+            const is112 = Number(assoc.code) === BASKET_112;
+            const isStem = Number(assoc.code) === 706;
+            return `<div class="gt-assoc${isStem ? ' gt-assoc--secondary' : ''}">
+              <div class="gt-assoc__head">
+                <strong>${assoc.code} – ${esc(BASKETS[assoc.code] || '')}</strong>
+                ${isStem ? statusBadge('מחוץ לתהליך 112 הנוכחי', 'muted') : ''}
+              </div>
+              <div class="gt-assoc__meta">
+                <span>תוקף: ${esc(assoc.validity || '—')}</span>
+                <span>מצב הגשה: ${statusBadge(assoc.status || '—', is112 && assoc.status === 'בתוקף' ? 'ok' : 'info')}</span>
+                <span>אימות מיפוי: ${assoc.mapping_verified === true ? statusBadge('אומת', 'ok') : statusBadge('טרם אומת', 'muted')}</span>
+                ${is112 && assoc.questions?.length ? `<span>${assoc.questions.length} שאלות</span>` : ''}
+              </div>
+              ${assoc.mapping_note ? `<details class="gt-details gt-details--compact"><summary>מידע משלים על מקור המיפוי</summary>
+                <div class="gt-details__body"><p class="gt-header__sub">${esc(assoc.mapping_note)}</p></div>
+              </details>` : ''}
             </div>`;
           }).join('') || '<div class="gt-empty">אין שיוכים</div>'}
         </div>`;
@@ -816,31 +899,54 @@ export async function mountGefenTender(root) {
       </tbody></table></div>`;
     } else if (programSub === 'syllabus') {
       const allSessions = normalizeSyllabusSessions(p.syllabus_sessions);
+      const inferred = inferAgeStageFromGrades(p.grades || p.details?.grades || '') || '';
       const sessions = allSessions.filter((s) => !syllabusAge || s.age_stage === syllabusAge);
+      const form174 = EXCEL_FORMS.find((f) => f.code === 174);
       body = `<div class="gt-toolbar">
-        <label>שכבת גיל <select data-syllabus-age>${opts(SYLLABUS_AGE_STAGES, syllabusAge)}</select></label>
+        <label>שכבת גיל <select data-syllabus-age>
+          <option value=""${!syllabusAge ? ' selected' : ''}>הכל</option>
+          ${opts(SYLLABUS_AGE_STAGES, syllabusAge)}
+        </select></label>
         <button type="button" class="gt-btn--sm gt-btn--primary" data-syl-add>הוספת מפגש</button>
-        <strong>${sessions.length} מפגשים</strong>
+        <button type="button" class="gt-btn--sm" data-export-form-global="174" title="הפקת טיוטת טופס 174 מהתבנית הרשמית">${icon('download')}הפקת טופס 174</button>
+        <button type="button" class="gt-btn--sm" data-fill-template="174" title="מילוי תבנית לפי נתוני התוכנית">${icon('edit')}מילוי תבנית 174</button>
+        <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-template-file="174" hidden>
+        <button type="button" class="gt-btn--sm" data-upload-template="174">${icon('upload')}ייבוא סילבוס Excel</button>
+        <strong>${sessions.length} מפגשים${allSessions.length !== sessions.length ? ` (מתוך ${allSessions.length})` : ''}</strong>
+        ${inferred ? `<span class="gt-badge gt-badge--info">שכבה מומלצת: ${esc(inferred)}</span>` : ''}
       </div>
-      <div class="gt-overflow" data-syl-table><table class="gt-table"><thead><tr>
-        <th>#</th><th>נושא</th><th>תוכן</th><th>מטרות</th><th>שיטות</th><th>מיומנויות וערכים</th><th></th>
+      <p class="gt-header__sub">סילבוס קטלוגי מובנה אינו טופס 174 רשמי ומאושר ללא התאמה לתבנית הרשמית${form174 ? ` (${esc(form174.file)})` : ''}.</p>
+      <div class="gt-overflow gt-overflow--sticky" data-syl-table><table class="gt-table gt-table--compact"><thead><tr>
+        <th>#</th><th>נושא</th><th>תיאור</th><th>משך</th><th>מקור</th><th></th>
       </tr></thead><tbody>${sessions.map((s, i) => `<tr>
-        <td><input type="number" min="1" style="width:4rem" data-syl-id="${esc(s.id)}" data-syl-field="meeting_number" value="${esc(s.meeting_number)}">
-          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="age_stage" value="${esc(s.age_stage)}"></td>
+        <td>
+          <input data-syl-id="${esc(s.id)}" data-syl-field="meeting_label" value="${esc(s.meeting_label)}" style="width:4.5rem" title="תווית מפגש / טווח">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_number" value="${esc(s.meeting_number)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_from" value="${esc(s.meeting_from)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_to" value="${esc(s.meeting_to)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="age_stage" value="${esc(s.age_stage || inferred || 'כללי')}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="source_group_id" value="${esc(s.source_group_id)}">
+          ${s.optional ? statusBadge('אופציונלי', 'muted') : ''}
+        </td>
         <td><input data-syl-id="${esc(s.id)}" data-syl-field="topic" value="${esc(s.topic)}"></td>
-        <td><input data-syl-id="${esc(s.id)}" data-syl-field="content" value="${esc(s.content)}"></td>
-        <td><input data-syl-id="${esc(s.id)}" data-syl-field="goals" value="${esc(s.goals)}"></td>
-        <td><input data-syl-id="${esc(s.id)}" data-syl-field="methods" value="${esc(s.methods)}"></td>
-        <td><input data-syl-id="${esc(s.id)}" data-syl-field="skills_values" value="${esc(s.skills_values)}"></td>
+        <td><textarea rows="2" data-syl-id="${esc(s.id)}" data-syl-field="content">${esc(s.content)}</textarea></td>
+        <td><input type="number" min="0" style="width:4rem" data-syl-id="${esc(s.id)}" data-syl-field="duration_minutes" value="${esc(s.duration_minutes || 90)}"></td>
+        <td>
+          <input data-syl-id="${esc(s.id)}" data-syl-field="source" value="${esc(s.source)}" placeholder="מקור">
+          <input type="number" min="0" style="width:3.5rem" data-syl-id="${esc(s.id)}" data-syl-field="source_page" value="${esc(s.source_page || '')}" placeholder="עמוד">
+        </td>
         <td>
           <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="up" ${i === 0 ? 'disabled' : ''}>↑</button>
           <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="down" ${i === sessions.length - 1 ? 'disabled' : ''}>↓</button>
           <button type="button" class="gt-btn--sm" data-syl-remove="${esc(s.id)}">הסרה</button>
         </td>
-      </tr>`).join('') || '<tr><td colspan="7"><div class="gt-empty">טרם נוספו מפגשים לשכבה זו.</div></td></tr>'}
+      </tr>`).join('') || '<tr><td colspan="6"><div class="gt-empty">טרם נוספו מפגשים לשכבה זו.</div></td></tr>'}
       </tbody></table></div>
-      <details class="gt-details"><summary>הערות סילבוס (טקסט ישן)</summary>
-        <div class="gt-details__body">${field('syllabus', 'הערות סילבוס', p.syllabus || '')}</div>
+      <div class="gt-field"><label>מסמך מקור לסילבוס</label>${renderDocumentUploader({
+        docs: p.syllabus_documents, area: 'syllabus', scopeKey: `program:${row.id}:syllabus_documents`
+      })}</div>
+      <details class="gt-details"><summary>הערות נוספות</summary>
+        <div class="gt-details__body">${field('syllabus', 'הערות נוספות', p.syllabus || '')}</div>
       </details>`;
     } else {
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
@@ -859,10 +965,10 @@ export async function mountGefenTender(root) {
     const recBtn = (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url)
       ? `<a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title))}" title="תיקיית המלצות">${icon('folder')}המלצות</a>`
       : '';
-    return `<div class="gt-toolbar">
+    return `<div class="gt-toolbar gt-toolbar--sticky">
       <button type="button" data-list-back>${icon('chevR')}חזרה לרשימה</button>
       <strong style="font-size:18px;font-weight:600">${esc(row.title)}</strong>
-      <span class="gt-header__sub">#${esc(p.number ?? '—')} · שיוך ${a112.association ? BASKET_112 : '—'}</span>
+      <span class="gt-header__sub">${p.number != null && p.number !== '' ? `#${esc(p.number)} · ` : ''}שיוך ${a112.association ? BASKET_112 : '—'}</span>
       ${a112.association ? statusBadge(a112.association.status || '—', 'info') : ''}
       ${recBtn}
       <button type="button" class="gt-btn--primary" data-save-program>${icon('save')}שמירה</button>
@@ -1130,8 +1236,8 @@ export async function mountGefenTender(root) {
     const qObj = questions[currentIdx] || enrichQuestion112({ label: current?.label, number: current?.number });
 
     h += `
-      <span class="gt-header__sub">#${esc(row.payload?.number ?? '—')}</span>
-      <strong>${approved} / ${answers.length || 41} מאושרות</strong>
+      <strong>${approved} מתוך ${answers.length || 41}</strong>
+      <span class="gt-header__sub">תשובות מאושרות</span>
       <span class="gt-progress" style="width:100px"><span style="width:${answers.length ? Math.round(100 * approved / answers.length) : 0}%"></span></span>
       <select data-filter-q>
         <option value="">כל המצבים</option>
@@ -1197,23 +1303,30 @@ export async function mountGefenTender(root) {
           </div>
           ${statusBadge(answerStateLabel(st), answerTone(st))}
         </div>
-        <details class="gt-details">
+        <details class="gt-details gt-details--compact">
           <summary>דרישות ומידע משלים</summary>
           <div class="gt-details__body">
-            <p><strong>דרישות:</strong> ${esc(qObj.requirements || current.requirements || 'לא צוינו')}</p>
-            <p><strong>תנאים:</strong> ${esc(qObj.threshold_conditions || current.conditions || '—')}</p>
-            <p><strong>קריטריונים:</strong> ${esc(qObj.professional_criteria || current.criteria || '—')}</p>
-            <p><strong>מסמכים:</strong> ${esc(qObj.attachments || current.attachments || '—')}</p>
-            <p><strong>מקור:</strong> ${esc(qObj.source || current.source || '—')}</p>
+            ${requirementsBlockHtml(qObj, current)}
+            ${(() => {
+              const rk = relevantKnowledge(row.payload?.knowledge_items, current, row);
+              const linkedN = rk.linked_to_question?.length || 0;
+              const addN = rk.additional_program_knowledge?.length || 0;
+              if (!linkedN && !addN) {
+                return hist.length ? '' : '<p class="gt-header__sub">אין תשובה היסטורית ישירה ואין פריטי ידע רלוונטיים שזוהו לשאלה זו.</p>';
+              }
+              return `<p><strong>ידע רלוונטי במאגר:</strong> ${linkedN} משויכים ישירות · ${addN} נוספים לפי תוכן
+                <span class="gt-badge gt-badge--muted">אינו תשובה מאושרת</span></p>
+                <ul class="gt-compact-list">${[...(rk.linked_to_question || []), ...(rk.additional_program_knowledge || [])]
+                  .slice(0, 6)
+                  .map((k) => `<li><strong>${esc(k.title || k.type || '')}</strong> — ${esc(String(k.content || '').slice(0, 120))}${String(k.content || '').length > 120 ? '…' : ''}</li>`)
+                  .join('')}</ul>`;
+            })()}
             ${hist.length ? hist.map((x) => `<div class="gt-hist"><span class="gt-hist__tag">היסטורית ${esc(x.tender_year || '')} · אינה מאושרת ל־2027</span>
               <div>${esc(x.answer)}</div>
               <button type="button" class="gt-btn--sm" data-import-hist-text="${esc(x.answer)}">ייבוא לטיוטה</button>
-            </div>`).join('') : '<p>אין תשובות היסטוריות לשאלה זו.</p>'}
+            </div>`).join('') : '<p class="gt-header__sub">אין תשובה היסטורית ישירה לשאלה זו.</p>'}
           </div>
         </details>
-        <div class="gt-q-actions">
-          <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקת נתונים ל־ChatGPT</button>
-        </div>
         <div class="gt-answer-area" data-answer-block="${currentIdx}">
           ${renderQuestionInput(current, qObj)}
         </div>
@@ -1221,6 +1334,17 @@ export async function mountGefenTender(root) {
           ${showCount ? `<span class="gt-count${overChars || overWords ? ' is-over' : ''}" data-answer-count>${limitLabel}${overChars || overWords ? ' · חריגה מהמגבלה' : ''}</span>` : '<span></span>'}
           <span data-gt-save-hint class="gt-header__sub"></span>
         </div>
+        <div class="gt-q-actions">
+          <button type="button" class="gt-btn--primary" data-context-preview="${currentIdx}">${icon('copy')}תצוגה מקדימה ל־ChatGPT</button>
+        </div>
+        ${contextPreview && contextPreview.idx === currentIdx ? `<div class="gt-panel gt-panel--preview">
+          <div class="gt-panel__title">תצוגה מקדימה — חבילת נתונים ל־ChatGPT</div>
+          <pre class="gt-preview-text">${esc(contextPreview.text.slice(0, 12000))}${contextPreview.text.length > 12000 ? '\n…' : ''}</pre>
+          <div class="gt-toolbar">
+            <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקה ללוח</button>
+            <button type="button" data-context-preview-close>סגירה</button>
+          </div>
+        </div>` : ''}
         <div class="gt-q-actions">
           <button type="button" class="gt-btn--primary" data-save-answer="${currentIdx}">${icon('save')}שמירה</button>
           ${st === 'ok'
@@ -1306,12 +1430,17 @@ export async function mountGefenTender(root) {
       return {
         area: field === 'recommendations_documents' ? 'recommendations'
           : field === 'experience_documents' ? 'experience'
-            : field === 'documents' ? 'evidence' : 'program',
+            : field === 'syllabus_documents' ? 'syllabus'
+              : field === 'documents' ? 'evidence' : 'program',
         field,
         program_id: program?.id,
         program_title: program?.title,
         recommendations_folder: RECOMMENDATION_FOLDER_BY_PROGRAM[program?.id] || program?.payload?.recommendations_folder_name,
-        rule: fileRuleForArea(field === 'recommendations_documents' ? 'recommendations' : 'program')
+        rule: fileRuleForArea(
+          field === 'recommendations_documents' ? 'recommendations'
+            : field === 'syllabus_documents' ? 'syllabus'
+              : 'program'
+        )
       };
     }
     if (kind === 'operator') {
@@ -1427,7 +1556,7 @@ export async function mountGefenTender(root) {
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace],[data-exp-add],[data-exp-remove],[data-rec-add],[data-rec-remove],[data-syl-add],[data-syl-remove],[data-syl-move],[data-docs-browse],[data-docs-root],[data-open-program-sub],[data-people-add],[data-filter-k-hist]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-preview],[data-context-preview-close],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace],[data-exp-add],[data-exp-remove],[data-rec-add],[data-rec-remove],[data-syl-add],[data-syl-remove],[data-syl-move],[data-docs-browse],[data-docs-root],[data-open-program-sub],[data-people-add],[data-filter-k-hist]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1710,16 +1839,36 @@ export async function mountGefenTender(root) {
       draw();
       return;
     }
+    if (t.matches('[data-context-preview]')) {
+      const row = rows.find((r) => r.id === submissionId);
+      if (!row) return;
+      const answers = buildSubmissionAnswers(row).filter((a) => a.code === BASKET_112 && !a.unmapped);
+      const idx = Number(t.dataset.contextPreview);
+      const a = answers[idx];
+      if (!a) return;
+      contextPreview = { idx, text: buildContextPacket(row, a, rows) };
+      draw();
+      return;
+    }
+    if (t.matches('[data-context-preview-close]')) {
+      contextPreview = null;
+      draw();
+      return;
+    }
     if (t.matches('[data-context-copy]')) {
       const row = rows.find((r) => r.id === submissionId);
       if (!row) return;
       const answers = buildSubmissionAnswers(row).filter((a) => a.code === BASKET_112 && !a.unmapped);
       const a = answers[Number(t.dataset.contextCopy)];
       if (!a) return;
-      const packet = buildContextPacket(row, a, rows);
+      const packet = (contextPreview && contextPreview.idx === Number(t.dataset.contextCopy))
+        ? contextPreview.text
+        : buildContextPacket(row, a, rows);
       await navigator.clipboard.writeText(packet);
       toast('הועתק');
       setStatus('הועתק', 'ok');
+      contextPreview = null;
+      draw();
       return;
     }
     if (t.matches('[data-final-copy]')) {
@@ -1848,8 +1997,11 @@ export async function mountGefenTender(root) {
       if (!row) return;
       const synced = collectProgramPayload(row);
       const list = normalizeSyllabusSessions(synced.syllabus_sessions);
-      const same = list.filter((s) => s.age_stage === syllabusAge);
-      list.push(emptySyllabusSession(syllabusAge, same.length + 1));
+      const stage = syllabusAge
+        || inferAgeStageFromGrades(synced.grades || synced.details?.grades || '')
+        || 'כללי';
+      const same = list.filter((s) => s.age_stage === stage);
+      list.push(emptySyllabusSession(stage, same.length + 1));
       synced.syllabus_sessions = list;
       row.payload = synced;
       dirty = true;
@@ -1873,10 +2025,10 @@ export async function mountGefenTender(root) {
       const synced = collectProgramPayload(row);
       const id = t.dataset.sylMove;
       const dir = t.dataset.dir || 'down';
-      // Reorder within the active age stage only.
+      // Reorder within the active age-stage filter (or all when filter is empty).
       const all = normalizeSyllabusSessions(synced.syllabus_sessions);
-      const stage = all.filter((s) => s.age_stage === syllabusAge);
-      const rest = all.filter((s) => s.age_stage !== syllabusAge);
+      const stage = syllabusAge ? all.filter((s) => s.age_stage === syllabusAge) : all;
+      const rest = syllabusAge ? all.filter((s) => s.age_stage !== syllabusAge) : [];
       synced.syllabus_sessions = [...rest, ...reorderSyllabusSessions(stage, id, dir)];
       row.payload = synced;
       dirty = true;
@@ -1970,7 +2122,7 @@ export async function mountGefenTender(root) {
     if (t.matches('[data-filter-k-ver]')) { filterKnowledgeVer = t.value; draw(); return; }
     if (t.matches('[data-filter-k-topic]')) { filterKnowledgeTopic = t.value; draw(); return; }
     if (t.matches('[data-filter-k-hist]')) { knowledgeSourceFilter = t.value || 'all'; draw(); return; }
-    if (t.matches('[data-syllabus-age]')) { syllabusAge = t.value || 'כללי'; draw(); return; }
+    if (t.matches('[data-syllabus-age]')) { syllabusAge = t.value || ''; draw(); return; }
     if (t.matches('[data-people-picker-q]')) { peoplePickerQ = t.value || ''; draw(); return; }
     if (t.matches('[data-knowledge-xlsx-file]') && t.files?.[0]) {
       const file = t.files[0];
@@ -2092,6 +2244,15 @@ export async function mountGefenTender(root) {
     }
     if (t.matches('[data-field], [data-a], [data-q-text], [data-q-extra], [data-q-choice], [data-q-multi], [data-dev-id], [data-op-id], [data-exp-field], [data-rec-field], [data-syl-field]')) {
       scheduleAutosave();
+      if (t.matches('[data-field]')) {
+        const key = t.dataset.field;
+        const counter = root.querySelector(`[data-count="${CSS.escape(key)}"]`);
+        if (counter) {
+          const lim = Number(counter.dataset.countLimit) || 0;
+          counter.textContent = formatCount(String(t.value || '').length, lim);
+          counter.classList.toggle('is-over', lim > 0 && String(t.value || '').length > lim);
+        }
+      }
       const count = root.querySelector('[data-answer-count]');
       if (count && (t.matches('[data-q-text]') || t.matches('[data-q-extra]'))) {
         const answers = submissionId

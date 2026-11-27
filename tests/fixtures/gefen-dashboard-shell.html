@@ -80,8 +80,8 @@
               <div class="gt-grid-2">
                 <div class="gt-field"><label>שם תוכנית</label><input type="text" value="Arduino"></div>
                 <div class="gt-field"><label>תחום מרכזי</label><select><option>בחרו</option><option>לימודי</option></select></div>
-                <div class="gt-field"><label>תקציר התוכנית</label><textarea rows="4" maxlength="1000"></textarea><small class="gt-count">0 / 1000</small></div>
-                <div class="gt-field"><label>מטרה מרכזית</label><textarea rows="3" maxlength="750"></textarea><small class="gt-count">0 / 750</small></div>
+                <div class="gt-field"><label>תקציר התוכנית</label><textarea rows="2" maxlength="1000" data-demo-summary>דוגמה</textarea><small class="gt-count" data-count-limit="1000">&#x2066;3 / 1000&#x2069;</small></div>
+                <div class="gt-field"><label>מטרה מרכזית</label><textarea rows="2" maxlength="750"></textarea><small class="gt-count" data-count-limit="750">&#x2066;0 / 750&#x2069;</small></div>
                 <div class="gt-field"><label>מגזר</label>
                   <div data-multi="sector">
                     <label><input type="checkbox">יהודי</label>
@@ -115,12 +115,38 @@
                     <label><input type="radio" name="c" checked>יזמות טכנולוגית</label>
                     <label><input type="radio" name="c">חדשנות פדגוגית ארגונית</label>
                   </div>
+                  <details class="gt-details gt-details--compact" open>
+                    <summary>דרישות ומידע משלים</summary>
+                    <div class="gt-details__body">
+                      <p><strong>דרישות מקצועיות:</strong> בחירת אפיק</p>
+                      <p><strong>פורמט מענה:</strong> בחירה <span class="gt-badge gt-badge--muted">אינו דרישה מקצועית</span></p>
+                      <p><strong>מקור:</strong> <a class="gt-doc-link" href="#">שאלות STEM.docx</a></p>
+                    </div>
+                  </details>
                   <div class="gt-q-actions">
-                    <button type="button" class="gt-btn--primary">העתקת נתונים ל־ChatGPT</button>
+                    <button type="button" class="gt-btn--primary">תצוגה מקדימה ל־ChatGPT</button>
                     <button type="button" class="gt-btn--primary">שמירה</button>
                   </div>
                 </section>
               </div>
+            </div>
+
+            <div class="gt-panel">
+              <div class="gt-panel__title">סילבוס מובנה — ביומימיקרי יסודי</div>
+              <div class="gt-toolbar">
+                <label>שכבת גיל <select><option>הכל</option><option selected>יסודי</option></select></label>
+                <button type="button" class="gt-btn--sm gt-btn--primary">הוספת מפגש</button>
+                <button type="button" class="gt-btn--sm">הפקת טופס 174</button>
+                <strong>11 מפגשים</strong>
+              </div>
+              <table class="gt-table gt-table--compact"><thead><tr>
+                <th>#</th><th>נושא</th><th>תיאור</th><th>משך</th>
+              </tr></thead><tbody>
+                <tr><td>1</td><td>ביו-מי?</td><td>היכרות עם תחום הביומימיקרי</td><td>90</td></tr>
+                <tr><td>2</td><td>BIO-WOW</td><td>השראה מהטבע וחדשנות</td><td>90</td></tr>
+                <tr><td>11</td><td>הצגה וסיכום</td><td>הצגת פרויקטים בפני קהל</td><td>90</td></tr>
+              </tbody></table>
+              <p class="gt-header__sub">סילבוס קטלוגי מובנה אינו טופס 174 רשמי ומאושר ללא התאמה לתבנית.</p>
             </div>
 
             <div class="gt-panel">

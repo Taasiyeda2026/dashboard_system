@@ -42,6 +42,24 @@ export function limitedAnswerText(qOrAnswer) {
   return String(qOrAnswer.value ?? '');
 }
 
+/** Field-format hints stored as "requirements" — not professional tender requirements. */
+export function isFieldFormatRequirement(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  return /^(טקסט|מספר|בחירה|כן\/לא)(\s*[–\-].*)?$/i.test(s)
+    || /^כן\/לא\s*\+\s*טקסט/i.test(s)
+    || /^(text|number|choice)$/i.test(s);
+}
+
+export function professionalRequirementText(raw) {
+  const req = raw?.requirements ?? null;
+  if (req == null || req === '') return { kind: 'missing', text: '' };
+  if (isFieldFormatRequirement(req)) {
+    return { kind: 'format_only', text: String(req), format: String(req) };
+  }
+  return { kind: 'professional', text: String(req) };
+}
+
 export function enrichQuestion112(raw) {
   const number = Number(raw.number || raw.order || 0);
   const requirements = raw.requirements || null;

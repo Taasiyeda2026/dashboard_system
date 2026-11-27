@@ -69,17 +69,33 @@ export const SYLLABUS_AGE_STAGES = ['יסודי', 'חטיבה', 'תיכון', '�
 
 export function normalizeSyllabusSessions(value) {
   if (!Array.isArray(value)) return [];
-  return value.filter((s) => s && typeof s === 'object').map((s, i) => ({
-    id: s.id || uid('syl'),
-    age_stage: String(s.age_stage || 'כללי').trim() || 'כללי',
-    meeting_number: Number(s.meeting_number) || (i + 1),
-    topic: String(s.topic || '').trim(),
-    content: String(s.content || '').trim(),
-    goals: String(s.goals || '').trim(),
-    methods: String(s.methods || '').trim(),
-    skills_values: String(s.skills_values || '').trim(),
-    notes: String(s.notes || '').trim()
-  }));
+  return value.filter((s) => s && typeof s === 'object').map((s, i) => {
+    const meetingFrom = Number(s.meeting_from || s.meeting_number) || (i + 1);
+    const meetingTo = Number(s.meeting_to || s.meeting_number || meetingFrom) || meetingFrom;
+    const meetingNumber = Number(s.meeting_number) || meetingFrom;
+    const label = String(s.meeting_label || '').trim()
+      || (meetingFrom === meetingTo ? String(meetingNumber) : `${meetingFrom}–${meetingTo}`);
+    return {
+      id: s.id || uid('syl'),
+      age_stage: String(s.age_stage || 'כללי').trim() || 'כללי',
+      meeting_number: meetingNumber,
+      meeting_from: meetingFrom,
+      meeting_to: meetingTo,
+      meeting_label: label,
+      topic: String(s.topic || '').trim(),
+      content: String(s.content || '').trim(),
+      goals: String(s.goals || '').trim(),
+      methods: String(s.methods || '').trim(),
+      skills_values: String(s.skills_values || '').trim(),
+      notes: String(s.notes || '').trim(),
+      duration_minutes: Number(s.duration_minutes) || 0,
+      source: String(s.source || '').trim(),
+      source_page: Number(s.source_page) || 0,
+      source_group_id: String(s.source_group_id || '').trim(),
+      optional: Boolean(s.optional),
+      catalog_only: s.catalog_only !== false
+    };
+  });
 }
 
 export function emptySyllabusSession(ageStage = 'כללי', meetingNumber = 1) {
@@ -87,13 +103,32 @@ export function emptySyllabusSession(ageStage = 'כללי', meetingNumber = 1) {
     id: uid('syl'),
     age_stage: ageStage,
     meeting_number: meetingNumber,
+    meeting_from: meetingNumber,
+    meeting_to: meetingNumber,
+    meeting_label: String(meetingNumber),
     topic: '',
     content: '',
     goals: '',
     methods: '',
     skills_values: '',
-    notes: ''
+    notes: '',
+    duration_minutes: 90,
+    source: '',
+    source_page: 0,
+    source_group_id: '',
+    optional: false,
+    catalog_only: true
   };
+}
+
+/** Infer age stage from Hebrew grade ranges when known. */
+export function inferAgeStageFromGrades(grades = '') {
+  const g = String(grades || '');
+  if (/ד['׳’]?\s*[–\-־]\s*ו/.test(g) || /יסודי/.test(g)) return 'יסודי';
+  if (/ז['׳’]?\s*[–\-־]\s*[טח]/.test(g) || /חטיב/.test(g)) return 'חטיבה';
+  if (/י['׳’]?\s*[–\-־]\s*י[בג]/.test(g) || /תיכון/.test(g)) return 'תיכון';
+  if (/ז['׳’]?\s*[–\-־]\s*י['׳’]?/.test(g)) return 'חטיבה';
+  return '';
 }
 
 export function reorderSyllabusSessions(sessions, fromId, direction) {

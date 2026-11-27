@@ -4,6 +4,7 @@ import { summarizeGaps, isFactualKnowledgeItem, knowledgeContentRole } from './k
 import { historicalForQuestion } from './historical-answers.js';
 import { buildSubmissionAnswers } from './questionnaires.js';
 import { BASKET_112, BASKET_112_TITLE, countWords } from './questionnaire-112.js';
+import { normalizeSyllabusSessions } from './program-records.js';
 
 export const CHATGPT_SYSTEM_PROMPT_112 = `עליך להכין תשובה מקצועית לשאלה המצורפת במסגרת מכרז גפ״ן 2027, תת סל 112 – חדשנות ויזמות טכנולוגית, עבור תוכנית של תעשיידע.
 
@@ -191,6 +192,31 @@ export function buildContextPacket(row, answer, latestRows = []) {
   const for112 = Number(answer.code) === BASKET_112 || String(answer.question_id || '').startsWith('112.');
   const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
 
+  const details = p.details && typeof p.details === 'object' ? p.details : {};
+  const catalog = p.catalog_program_materials && typeof p.catalog_program_materials === 'object'
+    ? p.catalog_program_materials
+    : null;
+  const sessions = normalizeSyllabusSessions(p.syllabus_sessions);
+  const syllabusSummary = {
+    session_count: sessions.length,
+    age_stages: [...new Set(sessions.map((s) => s.age_stage).filter(Boolean))],
+    duration_minutes: [...new Set(sessions.map((s) => s.duration_minutes).filter(Boolean))],
+    catalog_note: 'סילבוס קטלוגי מובנה — אינו טופס 174 רשמי/מאושר ללא התאמה לתבנית',
+    sessions: sessions.map((s) => ({
+      meeting_label: s.meeting_label,
+      meeting_from: s.meeting_from,
+      meeting_to: s.meeting_to,
+      age_stage: s.age_stage,
+      topic: s.topic,
+      content: s.content,
+      duration_minutes: s.duration_minutes || undefined,
+      optional: s.optional || undefined,
+      source: s.source || undefined,
+      source_page: s.source_page || undefined,
+      source_group_id: s.source_group_id || undefined
+    }))
+  };
+
   const sections = [
     ['זיהוי', {
       program: row.title,
@@ -238,10 +264,17 @@ export function buildContextPacket(row, answer, latestRows = []) {
         Array.isArray(t.related_questions) && t.related_questions.includes(answer.question_id)
       )
     }],
+    ['פרטי תוכנית — תקציר ומטרה (אם הוזנו)', pick(details, ['summary', 'goal', 'name', 'topic', 'audience', 'type'])],
+    ['חומרי תוכנית מקטלוג (אינם תשובה מאושרת)', catalog ? pick(catalog, [
+      'program_name_on_page', 'grades_on_page', 'declared_sessions', 'minutes', 'age_stage',
+      'summary', 'goal', 'course_description', 'process_stages', 'outcomes', 'skills', 'tags',
+      'source_document', 'page', 'source_url'
+    ]) : undefined],
+    ['סילבוס מובנה של התוכנית', sessions.length ? syllabusSummary : undefined],
     ['תשובות היסטוריות (אינן מאושרות אוטומטית ל־2027)', history.length ? history : undefined],
     ['טיוטה נוכחית', answer.value],
     ['מאגר ידע עובדתי של התוכנית בלבד (אינו תשובה מאושרת ל־2027)', relevantKnowledge(p.knowledge_items, answer, row)],
-    ['הערות ידע חופשיות', pick(p, ['knowledge_notes', 'source_notes', 'historical_notes', 'details', 'syllabus', 'experience', 'recommendations'])],
+    ['הערות ידע חופשיות', pick(p, ['knowledge_notes', 'source_notes', 'historical_notes', 'syllabus', 'experience', 'recommendations'])],
     ['מפתחים ומפעילים משויכים — ללא פרטי קשר אישיים', peopleForProgram(row, latestRows)],
     ['תשובות קשורות מאותה הגשה', allAnswers
       .filter((x) => x.key !== answer.key && answerText(x.value).trim())
@@ -255,7 +288,7 @@ export function buildContextPacket(row, answer, latestRows = []) {
     ['תיקיית המלצות ב־SharePoint', recUrl || 'לא שויכה עדיין'],
     ['Google Drive — תוכניות תעשיידע', GOOGLE_DRIVE_PROGRAMS],
     ['תיקיית Google Drive של התוכנית', p.drive_folder_url || 'לא שויכה עדיין'],
-    ['מסמכי SharePoint של התוכנית', p.sharepoint_urls || p.sharepoint_notes || 'לא תועדו'],
+    ['מסמכי SharePoint של התוכנית', p.sharepoint_urls || p.sharepoint_notes || p.documents || 'לא תועדו'],
     ['מידע חסר או שטרם אומת', gaps]
   ];
 

@@ -39,6 +39,20 @@ function peopleRows(program, peopleRows, idsKey, textKey) {
 }
 
 function syllabusRows(program) {
+  const sessions = program.payload?.syllabus_sessions;
+  if (Array.isArray(sessions) && sessions.length) {
+    return sessions.map((item, i) => ({
+      meeting: item.meeting_label || item.meeting_number || item.meeting || (i + 1),
+      audience: item.age_stage || item.audience || '',
+      topics: item.topic || item.topics || '',
+      content: item.content || '',
+      methods: item.methods || '',
+      skills: item.skills_values || item.skills || '',
+      catalog_ref: item.source
+        ? `${item.source}${item.source_page ? ` | עמוד ${item.source_page}` : ''}${item.catalog_only ? ' · קטלוגי (לא 174 מאושר)' : ''}`
+        : (item.catalog_ref || '')
+    }));
+  }
   const structured = program.payload?.syllabus_items;
   if (Array.isArray(structured) && structured.length) {
     return structured.map((item, i) => ({
