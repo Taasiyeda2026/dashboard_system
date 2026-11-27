@@ -1,4 +1,4 @@
-create table public.gefen_tender_2027 (
+create table if not exists public.gefen_tender_2027 (
   id text primary key,
   kind text not null check (kind in ('administrative','program','operator')),
   title text not null,
@@ -10,8 +10,11 @@ alter table public.gefen_tender_2027 enable row level security;
 revoke all on public.gefen_tender_2027 from anon, authenticated;
 grant select, insert, update on public.gefen_tender_2027 to authenticated;
 grant all on public.gefen_tender_2027 to service_role;
+drop policy if exists gefen_tender_admin_read on public.gefen_tender_2027;
 create policy gefen_tender_admin_read on public.gefen_tender_2027 for select to authenticated using ((select public.app_current_role())='admin');
+drop policy if exists gefen_tender_admin_insert on public.gefen_tender_2027;
 create policy gefen_tender_admin_insert on public.gefen_tender_2027 for insert to authenticated with check ((select public.app_current_role())='admin');
+drop policy if exists gefen_tender_admin_update on public.gefen_tender_2027;
 create policy gefen_tender_admin_update on public.gefen_tender_2027 for update to authenticated using ((select public.app_current_role())='admin') with check ((select public.app_current_role())='admin');
 insert into public.gefen_tender_2027(id,kind,title,payload) values
 ('admin','administrative','הגשה מנהלית','{}'::jsonb),
