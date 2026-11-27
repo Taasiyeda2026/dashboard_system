@@ -128,6 +128,11 @@ function managementTilesHtml() {
   const routes = effectiveRoutes();
   const isAdmin = canViewAdminOnlyTools();
   const tiles = [
+    isAdmin && tileButton({
+      title: 'מכרז גפן 2027',
+      description: 'הגשה מנהלית, תוכניות ומסמכי המכרז',
+      icon: 'control'
+    }).replace('class="admin-management-tile"', 'class="admin-management-tile" data-gefen-tender-open="true"'),
     '<div data-budget-entry hidden></div>',
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
@@ -342,6 +347,19 @@ export const adminHomeScreen = {
             ${managementTilesHtml()}
           </div>
         </div>
+        ${canViewAdminOnlyTools() ? `
+          <section data-gefen-tender-section hidden aria-label="מכרז גפן 2027">
+            <button type="button" class="admin-course-results-back" data-gefen-tender-back>חזרה לניהול</button>
+            <h2>מכרז גפן 2027</h2>
+            <div class="admin-management-grid">
+              <a class="admin-management-tile" href="https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%A0%D7%99%D7%94%D7%95%D7%9C/%D7%9E%D7%9B%D7%A8%D7%96%20%D7%92%D7%A4%D7%9F%202027/11%20-%20%D7%98%D7%95%D7%A4%D7%A1%20%D7%9E%D7%A0%D7%94%D7%9C%D7%99%20%D7%95%D7%94%D7%A6%D7%94%D7%A8%D7%95%D7%AA" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="admin-management-tile__icon">${iconSvg('reports')}</span><span class="admin-management-tile__content"><strong>הגשה מנהלית</strong><small>19 סעיפי הצהרה ואישורים</small></span><span class="admin-management-tile__arrow" aria-hidden="true">‹</span></a>
+              <a class="admin-management-tile" href="https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%A0%D7%99%D7%94%D7%95%D7%9C/%D7%9E%D7%9B%D7%A8%D7%96%20%D7%92%D7%A4%D7%9F%202027/03%20-%20%D7%A8%D7%A9%D7%99%D7%9E%D7%AA%20%D7%AA%D7%95%D7%9B%D7%A0%D7%99%D7%95%D7%AA%20%D7%95%D7%AA%D7%95%D7%A7%D7%A3" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="admin-management-tile__icon">${iconSvg('reports')}</span><span class="admin-management-tile__content"><strong>תוכניות והגשות</strong><small>רשימת תוכניות ותוקף</small></span><span class="admin-management-tile__arrow" aria-hidden="true">‹</span></a>
+              <a class="admin-management-tile" href="https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%A0%D7%99%D7%94%D7%95%D7%9C/%D7%9E%D7%9B%D7%A8%D7%96%20%D7%92%D7%A4%D7%9F%202027/06%20-%20%D7%9E%D7%A4%D7%AA%D7%97%D7%99%D7%9D%20%D7%95%D7%9E%D7%A4%D7%A2%D7%99%D7%9C%D7%99%D7%9D" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="admin-management-tile__icon">${iconSvg('reports')}</span><span class="admin-management-tile__content"><strong>מפתחים ומפעילים</strong><small>אסמכתאות השכלה, הכשרה וניסיון</small></span><span class="admin-management-tile__arrow" aria-hidden="true">‹</span></a>
+              <a class="admin-management-tile" href="https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%A0%D7%99%D7%94%D7%95%D7%9C/%D7%9E%D7%9B%D7%A8%D7%96%20%D7%92%D7%A4%D7%9F%202027/01%20-%20%D7%9E%D7%A1%D7%9E%D7%9B%D7%99%20%D7%94%D7%9E%D7%9B%D7%A8%D7%96" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="admin-management-tile__icon">${iconSvg('reports')}</span><span class="admin-management-tile__content"><strong>מסמכים ותבניות</strong><small>מסמכי המכרז</small></span><span class="admin-management-tile__arrow" aria-hidden="true">‹</span></a>
+              <a class="admin-management-tile" href="https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%A0%D7%99%D7%94%D7%95%D7%9C/%D7%9E%D7%9B%D7%A8%D7%96%20%D7%92%D7%A4%D7%9F%202027/02%20-%20%D7%AA%D7%91%D7%A0%D7%99%D7%95%D7%AA%20%D7%95%D7%98%D7%A4%D7%A1%D7%99%D7%9D" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="admin-management-tile__icon">${iconSvg('reports')}</span><span class="admin-management-tile__content"><strong>תבניות וטפסים</strong><small>טפסים רשמיים</small></span><span class="admin-management-tile__arrow" aria-hidden="true">‹</span></a>
+            </div>
+          </section>
+        ` : ''}
         ${canViewCourseResults() ? `
           <section data-course-results-section hidden aria-label="תוצאות קורסים">
             <div data-course-results-catalog>
@@ -371,6 +389,16 @@ export const adminHomeScreen = {
     `);
   },
   bind({ root }) {
+    if (canViewAdminOnlyTools()) {
+      const main = root?.querySelector('[data-course-results-main]');
+      const tender = root?.querySelector('[data-gefen-tender-section]');
+      root?.querySelector('[data-gefen-tender-open]')?.addEventListener('click', () => {
+        if (canViewAdminOnlyTools() && main && tender) { main.hidden = true; tender.hidden = false; }
+      });
+      root?.querySelector('[data-gefen-tender-back]')?.addEventListener('click', () => {
+        if (main && tender) { tender.hidden = true; main.hidden = false; }
+      });
+    }
     const budgetEntry = root?.querySelector('[data-budget-entry]');
     if (budgetEntry) {
       void resolveBudgetUser(supabase).then(user => {
