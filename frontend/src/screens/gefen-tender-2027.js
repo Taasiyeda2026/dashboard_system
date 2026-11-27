@@ -13,7 +13,7 @@ const opts=(values,current)=>values.map(v=>'<option value="'+esc(v)+'"'+(v===cur
 export async function mountGefenTender(root) {
  if(!root||!admin())return;
  root.innerHTML='<p role="status">טוען נתונים...</p>';
- let rows=[],tab='administrative',selected='',busy=false;
+ let rows=[],tab='administrative',selected='',busy=false,submissionId='';
  const get=()=>rows.find(r=>r.id===selected);
  const administrative=()=>rows.find(r=>r.kind==='administrative');
  const completed=()=>Object.values(administrative()?.payload?.sections||{}).filter(x=>x.status===STATUSES[5]).length;
@@ -24,18 +24,46 @@ export async function mountGefenTender(root) {
  };
  const save=async (row,payload)=>{
  if(!admin()||busy)return false;
- busy=true;root.querySelectorAll('button,select,textarea,input').forEach(e=>e.disabled=true);
+ busy=true;const enabled=[...root.querySelectorAll('button,select,textarea,input')].filter(e=>!e.disabled);enabled.forEach(e=>e.disabled=true);
  const status=root.querySelector('[data-gt-status]');status.textContent='שומר...';
  try{
  const {data,error}=await supabase.from(TABLE).update({payload,revision:row.revision+1,updated_at:new Date().toISOString()}).eq('id',row.id).eq('revision',row.revision).select().maybeSingle();
  if(error)throw error;if(!data)throw Error('הרשומה השתנתה. יש לטעון מחדש.');
  Object.assign(row,data);status.textContent='נשמר';return true;
- }catch(e){status.textContent='השמירה נכשלה: '+e.message;return false;}finally{busy=false;root.querySelectorAll('button,select,textarea,input').forEach(e=>e.disabled=false);}
+ }catch(e){status.textContent='השמירה נכשלה: '+e.message;return false;}finally{busy=false;enabled.forEach(e=>e.disabled=false);}
  };
+
+ const answerText=v=>Array.isArray(v)?v.join(', '):String(v??'');
+ function submissionAnswers(row){
+ const p=row.payload;
+ return [
+ ...FIELDS.map(([k,label,limit])=>({key:'details.'+k,group:'פרטי תוכנית',label,value:answerText(p.details?.[k]??(k==='name'?row.title:'')),limit})),
+ ...(p.associations||[]).flatMap((a,i)=>Array.isArray(a.questions)?a.questions.map((q,j)=>({key:'association.'+i+'.'+j,group:a.code+' – '+BASKETS[a.code],label:q.label,value:answerText(q.answer),limit:q.limit})):[]),
+ ...['syllabus','experience','recommendations','developers','operators'].map((k,i)=>({key:k,group:'מסמכים ונספחים',label:['סילבוס','ניסיון בהפעלה','המלצות','מפתחים','מפעילים'][i],value:answerText(p[k])}))
+ ];
+ }
+ const isFinal=(row,a)=>Boolean(a.value.trim())&&row.payload.final_answers?.[a.key]===a.value&&(!a.limit||a.value.length<=a.limit);
+ function submissionHtml(){
+ const items=rows.filter(r=>r.kind==='program');
+ const row=items.find(r=>r.id===submissionId);
+ let h='<div class="gt-toolbar"><label>בחירת תוכנית <select data-submission-select><option value="">בחרו תוכנית</option>'+items.map(r=>'<option value="'+esc(r.id)+'"'+(r.id===submissionId?' selected':'')+'>'+esc(r.title)+'</option>').join('')+'</select></label></div>';
+ if(!row)return h;
+ const answers=submissionAnswers(row), final=answers.filter(a=>isFinal(row,a));
+ h+='<div class="gt-toolbar"><strong>'+final.length+' / '+answers.length+' תשובות מאושרות</strong><button data-export-answers>יצוא תשובות מאושרות ל-Excel</button></div>';
+ if((row.payload.associations||[]).some(a=>!Array.isArray(a.questions)||!a.questions.length))h+='<p>מיפוי שאלוני תתי הסל עדיין חסר. אין לראות במסך זה חבילת הגשה מלאה.</p>';
+ if(completed()!==19)h+='<p>ההגשה המנהלית טרם הושלמה.</p>';
+ let group='';
+ for(const [i,a] of answers.entries()){
+ if(a.group!==group){group=a.group;h+='<h3>'+esc(group)+'</h3>';}
+ h+='<div class="gt-row"><div class="gt-toolbar"><strong>'+esc(a.label)+'</strong><small>'+esc(isFinal(row,a)?'מאושרת':a.value.trim()?'טיוטה':'חסר')+'</small><button data-final-copy="'+i+'" aria-label="העתקת תשובה" title="העתקת תשובה"'+(isFinal(row,a)?'':' disabled')+'>⧉</button><button data-final-toggle="'+i+'"'+(!a.value.trim()||(a.limit&&a.value.length>a.limit)?' disabled':'')+'>'+(isFinal(row,a)?'ביטול אישור':'אישור תשובה')+'</button></div><div style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(a.value||'טרם הוזנה תשובה')+'</div>'+(a.limit?'<small>'+a.value.length+' / '+a.limit+'</small>':'')+'</div>';
+ }
+ h+='<h3>טפסי Excel רשמיים</h3><div class="gt-list">'+[[159,'ניסיון מפתחים','NISAYON_MEFATCHIM_159 (4).XLSX'],[160,'ניסיון מפעילים','NISAYON_MAFIILIM_160 (1).XLSX'],[174,'תוכנית למידה','TOCHNIT_LEMIDA_174.XLSX'],...(row.payload.associations||[]).some(a=>a.code===706)?[[151,'קריטריוני STEM','STEM_TECHUMIM_151.xlsx']]:[]].map(([n,t,f])=>'<div class="gt-row">'+n+' – '+esc(t)+' · '+link('02 - תבניות וטפסים/'+f,'פתיחת תבנית המקור')+'</div>').join('')+'</div><p>הפקת הטפסים הרשמיים דורשת מיפוי שדות מובנים לתבניות; קובץ התשובות אינו תחליף לטפסים אלה.</p>';
+ return h;
+ }
  function draw(){
  if(!admin()||!root.isConnected)return;
  const a=administrative(), sections=a?.payload?.sections||{};
- const heading='<style>.gt-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.gt button,.gt select,.gt input,.gt textarea{font:inherit;border:1px solid #cbd5e1;border-radius:8px;padding:7px;background:var(--color-surface,#fff);color:inherit}.gt button{cursor:pointer}.gt button[aria-current=true]{background:#087f9c;color:white}.gt-list{display:grid;gap:8px}.gt-row,.gt-field{border:1px solid #dbe3ec;border-radius:10px;padding:12px;background:var(--color-surface,#fff)}.gt-row summary{cursor:pointer;font-weight:700}.gt-field{display:grid;gap:6px}.gt-field textarea,.gt-field select{width:100%;box-sizing:border-box}.gt-field label{font-weight:600}.gt-field [data-multi] label{display:inline-block;margin:5px;font-weight:400}.gt a{color:#087f9c}.gt-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.gt-table{width:100%;border-collapse:collapse}.gt-table td,.gt-table th{padding:9px;border-bottom:1px solid #dbe3ec;text-align:right}.gt-overflow{overflow:auto}</style><div class="gt" dir="rtl"><nav class="gt-nav">'+[['administrative','הגשה מנהלית'],['program','תוכניות והגשות'],['operator','מפתחים ומפעילים'],['documents','מסמכים ותבניות'],['readiness','בקרת מוכנות']].map(([k,t])=>'<button data-tab="'+k+'" aria-current="'+(tab===k)+'">'+t+'</button>').join('')+'</nav><p data-gt-status role="status" aria-live="polite"></p>';
+ const heading='<style>.gt-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.gt button,.gt select,.gt input,.gt textarea{font:inherit;border:1px solid #cbd5e1;border-radius:8px;padding:7px;background:var(--color-surface,#fff);color:inherit}.gt button{cursor:pointer}.gt button[aria-current=true]{background:#087f9c;color:white}.gt-list{display:grid;gap:8px}.gt-row,.gt-field{border:1px solid #dbe3ec;border-radius:10px;padding:12px;background:var(--color-surface,#fff)}.gt-row summary{cursor:pointer;font-weight:700}.gt-field{display:grid;gap:6px}.gt-field textarea,.gt-field select{width:100%;box-sizing:border-box}.gt-field label{font-weight:600}.gt-field [data-multi] label{display:inline-block;margin:5px;font-weight:400}.gt a{color:#087f9c}.gt-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.gt-table{width:100%;border-collapse:collapse}.gt-table td,.gt-table th{padding:9px;border-bottom:1px solid #dbe3ec;text-align:right}.gt-overflow{overflow:auto}</style><div class="gt" dir="rtl"><nav class="gt-nav">'+[['administrative','הגשה מנהלית'],['program','תוכניות והגשות'],['operator','מפתחים ומפעילים'],['documents','מסמכים ותבניות'],['readiness','בקרת מוכנות'],['submission','הגשה למכרז']].map(([k,t])=>'<button data-tab="'+k+'" aria-current="'+(tab===k)+'">'+t+'</button>').join('')+'</nav><p data-gt-status role="status" aria-live="polite"></p>';
  let html='';
  if(tab==='administrative'){
  html='<div class="gt-toolbar"><strong>'+completed()+' / 19 הושלמו</strong>'+link('11 - טופס מנהלי והצהרות','תיקיית הגשה מנהלית')+'<select data-filter><option value="">כל הסעיפים</option><option value="pending">להשלמה</option><option value="done">הושלמו</option></select></div><div class="gt-list">'+ADMIN.map((t,i)=>{const n=i+1,v=sections[n]||{},law=[5,6,10,12].includes(n),file=n<=6||[10,12].includes(n),instruction=law?'טופס מלא בחתימת הספק ומאומת על ידי עורך דין':file?'חובה לצרף קובץ PDF, JPG, BMP או GIF עד 5MB':'חתימה על הצהרה מקוונת בגפ״ן';return '<details class="gt-row" data-admin-row="'+n+'" data-done="'+(v.status===STATUSES[5])+'"><summary>'+n+'. '+esc(t)+' — '+esc(v.status||STATUSES[0])+'</summary><p>'+instruction+'</p>'+(n===4?'<p>אין לצרף אישור ניכוי מס במקור או מסמך עוסק פטור; יש לוודא תוקף.</p>':n===3?'<p>ניתן לצרף תעודת מלכ״ר.</p>':'')+'<label>סטטוס <select data-a="status">'+opts(STATUSES,v.status||STATUSES[0])+'</select></label> '+(file?'<label>קישור למסמך <input data-a="url" type="url" value="'+esc(v.url)+'"></label> <label>תוקף <input data-a="expiry" type="date" value="'+esc(v.expiry)+'"></label> ':'')+'<label>הערות <textarea data-a="notes">'+esc(v.notes)+'</textarea></label><button data-save-admin="'+n+'">שמירה</button></details>'}).join('')+'</div>';
@@ -52,6 +80,7 @@ export async function mountGefenTender(root) {
  }else{html+=link('06 - מפתחים ומפעילים/'+p.folder,'תיקיית אסמכתאות')+field('education','השכלה',p.education)+field('experience','ניסיון מקצועי',p.experience)+field('training_hours','שעות הכשרה',p.training_hours??'')+field('training','פירוט הכשרות',p.training)+field('notes','הערות ואסמכתאות חסרות',p.notes);}
  html+='</div><button data-save-record>שמירה</button>';
  }
+ }else if(tab==='submission'){html=submissionHtml();
  }else if(tab==='documents'){html='<div class="gt-list">'+['01 - מסמכי המכרז','02 - תבניות וטפסים','03 - רשימת תוכניות ותוקף','04 - חומרי תוכניות','05 - המלצות','06 - מפתחים ומפעילים','07 - ניסיון בהפעלת תוכניות','08 - אישורים ואסמכתאות','09 - הנחיות עבודה','10 - הגשות סופיות','11 - טופס מנהלי והצהרות'].map(n=>'<div class="gt-row">'+link(n,n)+'</div>').join('')+'</div>';}
  else{html='<h3>בקרת מוכנות</h3><p>הגשה מנהלית: '+completed()+' מתוך 19. '+(completed()===19?'כל הסעיפים סומנו כהושלמו.':'טרם מוכנה להגשה.')+'</p><p>שיוכים הדורשים טיפול: '+rows.filter(r=>r.kind==='program').flatMap(r=>r.payload.associations||[]).filter(a=>a.status!=='בתוקף').length+'</p><p>טרם אומתה מוכנות פדגוגית או עמידת מפעילים בתנאי הסף.</p>';}
  root.innerHTML=heading+html+'</div>';
@@ -62,6 +91,15 @@ export async function mountGefenTender(root) {
  root.querySelector('[data-search]')?.addEventListener('input',e=>root.querySelectorAll('[data-list-row]').forEach(x=>x.hidden=!x.textContent.toLowerCase().includes(e.target.value.toLowerCase())));
  root.querySelectorAll('[data-field]').forEach(x=>x.oninput=()=>{const c=root.querySelector('[data-count="'+x.dataset.field+'"]');if(c)c.textContent=x.value.length+(x.maxLength>0?' / '+x.maxLength:'')});
  root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(root.querySelector('[data-field="'+b.dataset.copy+'"]').value);root.querySelector('[data-gt-status]').textContent='הועתק';}catch{root.querySelector('[data-gt-status]').textContent='העתקה נכשלה';}});
+
+ root.querySelector('[data-submission-select]')?.addEventListener('change',e=>{submissionId=e.target.value;draw()});
+ const sr=rows.find(r=>r.id===submissionId);
+ if(tab==='submission'&&sr){
+ const answers=submissionAnswers(sr);
+ root.querySelectorAll('[data-final-copy]').forEach(b=>b.onclick=async()=>{const a=answers[Number(b.dataset.finalCopy)];if(!isFinal(sr,a))return;try{await navigator.clipboard.writeText(a.value);root.querySelector('[data-gt-status]').textContent='הועתק';}catch{root.querySelector('[data-gt-status]').textContent='העתקה נכשלה';}});
+ root.querySelectorAll('[data-final-toggle]').forEach(b=>b.onclick=async()=>{const a=answers[Number(b.dataset.finalToggle)],f={...sr.payload.final_answers};if(isFinal(sr,a))delete f[a.key];else if(a.value.trim()&&(!a.limit||a.value.length<=a.limit))f[a.key]=a.value;else return;if(await save(sr,{...sr.payload,final_answers:f}))draw()});
+ root.querySelector('[data-export-answers]')?.addEventListener('click',async()=>{try{const XLSX=await import('xlsx');const wb=XLSX.utils.book_new();const groups=[...new Set(answers.map(a=>a.group))];for(const g of groups){const entries=answers.filter(a=>a.group===g);const ws=XLSX.utils.aoa_to_sheet([['שאלה','תשובה','תווים','מצב'],...entries.map(a=>[a.label,isFinal(sr,a)?a.value:'',isFinal(sr,a)?a.value.length:'',isFinal(sr,a)?'מאושרת':'להשלמה'])]);ws['!cols']=[{wch:55},{wch:85},{wch:12},{wch:16}];XLSX.utils.book_append_sheet(wb,ws,g.replace(/[\\/?*\[\]:]/g,' ').slice(0,25)+' '+(groups.indexOf(g)+1));}wb.Workbook={Views:[{RTL:true}]};XLSX.writeFile(wb,'תשובות גפן 2027 - '+sr.title.replace(/[\\/?%*:|"<>]/g,'_')+'.xlsx');}catch(e){root.querySelector('[data-gt-status]').textContent='היצוא נכשל: '+e.message;}});
+ }
  root.querySelectorAll('[data-save-admin]').forEach(b=>b.onclick=async()=>{const n=b.dataset.saveAdmin,box=b.closest('details'),v={...sections[n]};box.querySelectorAll('[data-a]').forEach(x=>v[x.dataset.a]=x.value);if(v.url){try{if(new URL(v.url).hostname!=='think365orgil.sharepoint.com')throw Error()}catch{root.querySelector('[data-gt-status]').textContent='יש להזין קישור SharePoint תקין';return;}}if(await save(a,{...a.payload,sections:{...sections,[n]:v}}))draw()});
  root.querySelector('[data-save-record]')?.addEventListener('click',async()=>{const row=get(),v={};root.querySelectorAll('[data-field]').forEach(x=>v[x.dataset.field]=x.value);root.querySelectorAll('[data-multi]').forEach(x=>v[x.dataset.multi]=[...x.querySelectorAll(':checked')].map(c=>c.value));const p={...row.payload};if(tab==='program'){p.details={...p.details};FIELDS.forEach(([k])=>p.details[k]=v[k]);p.associations=p.associations.map((a,i)=>({...a,answers:v['answer_'+i]}));['syllabus','experience','recommendations','developers','operators'].forEach(k=>p[k]=v[k]);}else Object.assign(p,v);await save(row,p)});
  }
