@@ -597,6 +597,22 @@ select {
   zoom: 0.85;
 }
 
+/* Gefen tender workspace needs full usable width — do not force browser zoom-out. */
+.screen-root:has([data-gefen-tender-section]:not([hidden])) {
+  max-width: 100%;
+  margin-inline: 0;
+  zoom: 1;
+}
+
+.shell-main:has([data-gefen-tender-section]:not([hidden])),
+.shell-stage:has([data-gefen-tender-section]:not([hidden])),
+.ds-screen-stack:has([data-gefen-tender-section]:not([hidden])) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 /* The tracking table owns its horizontal overflow; every shell ancestor must be shrinkable. */
 .app-shell.route-israa-management .shell-main,
 .app-shell.route-israa-management .shell-stage,

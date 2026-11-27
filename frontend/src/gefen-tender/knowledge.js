@@ -1,13 +1,29 @@
 import { VERIFICATION_STATUSES } from './constants.js';
 
+/** Strip markup/entities so knowledge never stores HTML that later appears as visible tags. */
+export function plainKnowledgeText(value) {
+  return String(value ?? '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function createKnowledgeItem(partial = {}) {
   const now = new Date().toISOString();
-  const content = String(partial.content || '').trim();
+  const content = plainKnowledgeText(partial.content || '');
   return {
     id: partial.id || (typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : `k-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
-    title: String(partial.title || '').trim() || content.slice(0, 80),
+    title: plainKnowledgeText(partial.title || '') || content.slice(0, 80),
     type: partial.type || 'עובדה',
     content,
     source: String(partial.source || '').trim(),
