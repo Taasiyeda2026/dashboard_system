@@ -4,6 +4,9 @@ import {
   BASKET_112, association112, enrichQuestion112, withinWordLimit,
   limitedAnswerText
 } from './questionnaire-112.js';
+import {
+  documentsFilled, experienceFilled, recommendationsFilled, syllabusFilled
+} from './program-records.js';
 
 export function administrativeCompleted(adminRow) {
   const sections = adminRow?.payload?.sections || {};
@@ -71,10 +74,10 @@ export function readiness112(row, adminCompleted) {
     threshold: association?.eligibility_verified === true ? 'נבדק' : 'טרם נבדק',
     developers: (p.developer_ids || []).length || answerText(p.developers).trim() ? 'הוזן' : 'טרם הוזן',
     operators: (p.operator_ids || []).length || answerText(p.operators).trim() ? 'הוזן' : 'טרם הוזן',
-    experience: statusOf(answerText(p.experience).trim()),
-    recommendations: statusOf(answerText(p.recommendations).trim()),
-    syllabus: statusOf(answerText(p.syllabus).trim() || (p.syllabus_items || []).length),
-    documents: statusOf(answerText(p.sharepoint_notes).trim() || answerText(p.drive_folder_url).trim()),
+    experience: statusOf(experienceFilled(p)),
+    recommendations: statusOf(recommendationsFilled(p)),
+    syllabus: statusOf(syllabusFilled(p)),
+    documents: statusOf(documentsFilled(p)),
     forms: p.excel_templates_ready === true ? 'מוכן' : 'טרם הועלה',
     admin: adminCompleted === 19 ? 'הושלם' : `${adminCompleted}/19`
   };

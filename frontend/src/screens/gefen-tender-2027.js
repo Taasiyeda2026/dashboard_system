@@ -14,7 +14,7 @@ import {
 } from '../gefen-tender/final-answers.js';
 import {
   appendKnowledgeItems, assignKnowledgeToProgram, createKnowledgeItem, knowledgeFromCatalog,
-  isFactualKnowledgeItem, knowledgeContentRole
+  isFactualKnowledgeItem
 } from '../gefen-tender/knowledge.js';
 import {
   appendHistoricalAnswers, historicalForQuestion, parseHistoricalImport
@@ -41,6 +41,15 @@ import {
   fileRuleForArea, makeLinkedDocument, normalizeDocuments, primaryDocumentUrl,
   renderDocumentUploader, uploadGefenDocument, gefenSharePointInvoke
 } from '../gefen-tender/document-upload.js';
+import {
+  normalizeExperienceRecords, emptyExperienceRecord,
+  normalizeRecommendationRecords, emptyRecommendationRecord, RECOMMENDATION_STATUSES,
+  SYLLABUS_AGE_STAGES, normalizeSyllabusSessions, emptySyllabusSession, reorderSyllabusSessions,
+  historicalAsKnowledgeItems,
+  experienceFilled, recommendationsFilled, syllabusFilled, documentsFilled
+} from '../gefen-tender/program-records.js';
+
+const SP_ROOT = 'ניהול/מכרז גפן 2027';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -169,6 +178,11 @@ export async function mountGefenTender(root) {
   let filterQ = '';
   let searchQ = '';
   let toastTimer = null;
+  let docsListing = null;
+  let docsFolderPath = '';
+  let syllabusAge = 'כללי';
+  let peoplePickerQ = '';
+  let knowledgeSourceFilter = 'all';
 
   const pendingLeave = () => {
     if (!dirty) return true;
@@ -206,11 +220,29 @@ export async function mountGefenTender(root) {
         ).join(' ')}</div>`
         : `<select${attr}><option value="">בחרו</option>${opts(choices, value)}</select>`;
     } else {
-      const rowsN = limit && limit > 400 ? 5 : 3;
-      input = `<textarea rows="${rowsN}"${attr}${limit ? ` maxlength="${limit}"` : ''}>${esc(value)}</textarea>` +
-        `<small class="gt-count" data-count="${esc(key)}">${String(value ?? '').length}${limit ? ` / ${limit}` : ''}</small>`;
+      const lim = Number(limit) || 0;
+      const useTextarea = lim > 200;
+      if (useTextarea) {
+        const rowsN = lim > 400 ? 5 : 3;
+        input = `<textarea rows="${rowsN}"${attr} maxlength="${lim}">${esc(value)}</textarea>` +
+          `<small class="gt-count" data-count="${esc(key)}">${String(value ?? '').length} / ${lim}</small>`;
+      } else {
+        input = `<input type="text"${attr}${lim ? ` maxlength="${lim}"` : ''} value="${esc(value)}">` +
+          (lim ? `<small class="gt-count" data-count="${esc(key)}">${String(value ?? '').length} / ${lim}</small>` : '');
+      }
     }
-    return `<div class="gt-field"><label>${esc(label)}${limit ? ` (עד ${limit} תווים)` : ''}</label>${input}</div>`;
+    return `<div class="gt-field"><label>${esc(label)}${limit && Number(limit) > 0 ? ` (עד ${limit} תווים)` : ''}</label>${input}</div>`;
+  };
+
+  const readyCell = (status, { openSub = '', programId = '', gotoSubmission = false } = {}) => {
+    const filled = status === 'הוזן' || status === 'נבדק' || status === 'הושלם' || status === 'מוכן';
+    const short = filled ? (status === 'נבדק' || status === 'הושלם' || status === 'מוכן' ? status : 'הוזן') : 'חסר';
+    const tone = filled ? 'ok' : 'muted';
+    let nav = '';
+    if (gotoSubmission && programId) nav = ` data-goto-submission="${esc(programId)}"`;
+    else if (openSub && programId) nav = ` data-open-program-sub="${esc(openSub)}" data-program-id="${esc(programId)}"`;
+    else if (openSub) nav = ` data-open-program-sub="${esc(openSub)}"`;
+    return `<button type="button" class="gt-ready-cell"${nav}><span class="gt-dot gt-dot--${tone}"></span>${esc(short)}</button>`;
   };
 
   async function saveViaRpc(row, payload, mode = 'save_payload') {
@@ -326,13 +358,46 @@ export async function mountGefenTender(root) {
       'developers', 'operators', 'drive_folder_url', 'sharepoint_notes'].forEach((k) => {
       if (k in v) p[k] = v[k];
     });
+    if (root.querySelector('[data-exp-field]')) {
+      const byId = new Map();
+      root.querySelectorAll('[data-exp-id][data-exp-field]').forEach((el) => {
+        const id = el.dataset.expId;
+        if (!byId.has(id)) byId.set(id, { id });
+        byId.get(id)[el.dataset.expField] = el.value;
+      });
+      p.experience_records = normalizeExperienceRecords([...byId.values()]);
+    }
+    if (root.querySelector('[data-rec-field]')) {
+      const byId = new Map();
+      root.querySelectorAll('[data-rec-id][data-rec-field]').forEach((el) => {
+        const id = el.dataset.recId;
+        if (!byId.has(id)) byId.set(id, { id });
+        byId.get(id)[el.dataset.recField] = el.value;
+      });
+      p.recommendation_records = normalizeRecommendationRecords([...byId.values()]);
+    }
+    if (root.querySelector('[data-syl-field]')) {
+      const byId = new Map();
+      root.querySelectorAll('[data-syl-id][data-syl-field]').forEach((el) => {
+        const id = el.dataset.sylId;
+        if (!byId.has(id)) byId.set(id, { id });
+        const key = el.dataset.sylField;
+        byId.get(id)[key] = el.type === 'number' ? Number(el.value) || 0 : el.value;
+      });
+      const edited = normalizeSyllabusSessions([...byId.values()]);
+      const editedIds = new Set(edited.map((s) => s.id));
+      const kept = normalizeSyllabusSessions(p.syllabus_sessions).filter((s) => !editedIds.has(s.id));
+      p.syllabus_sessions = normalizeSyllabusSessions([...kept, ...edited]);
+    }
     if (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] && !p.recommendations_folder_url) {
       p.recommendations_folder_url = recommendationsFolderUrl(row.id, row.title);
       p.recommendations_folder_name = RECOMMENDATION_FOLDER_BY_PROGRAM[row.id];
     }
     p.thresholds_112 = thresholdsPayload(p.thresholds_112);
-    p.developer_ids = [...root.querySelectorAll('[data-dev-id]:checked')].map((x) => x.value);
-    p.operator_ids = [...root.querySelectorAll('[data-op-id]:checked')].map((x) => x.value);
+    if (root.querySelector('[data-dev-id], [data-op-id]')) {
+      p.developer_ids = [...root.querySelectorAll('[data-dev-id]:checked')].map((x) => x.value);
+      p.operator_ids = [...root.querySelectorAll('[data-op-id]:checked')].map((x) => x.value);
+    }
     const map = new Map(buildSubmissionAnswers({ ...row, payload: p }).map((a) => [a.key, a.value]));
     p.final_answers = reconcileFinalAnswers(p.final_answers, map);
     return p;
@@ -420,7 +485,7 @@ export async function mountGefenTender(root) {
           <div class="gt-grid-2">
             <div class="gt-field"><label>סטטוס</label><select data-a="status">${opts(ADMIN_STATUSES, v.status || ADMIN_STATUSES[0])}</select></div>
             ${file ? `<div class="gt-field"><label>תוקף</label><input data-a="expiry" type="date" value="${esc(v.expiry || '')}"></div>` : '<div></div>'}
-            <div class="gt-field"><label>קישור לתבנית</label><input data-a="template_url" type="url" value="${esc(v.template_url || '')}"></div>
+            ${law ? `<div class="gt-field"><label>קישור לתבנית</label><input data-a="template_url" type="url" value="${esc(v.template_url || '')}"></div>` : ''}
           </div>
           <div class="gt-field"><label>מסמכים</label>
             ${renderDocumentUploader({
@@ -430,7 +495,7 @@ export async function mountGefenTender(root) {
               sectionNumber: n,
               allowLink: true
             })}
-            <small class="gt-header__sub">העלאת מסמך אינה מסמנת את הסעיף כהושלם אוטומטית.</small>
+            <small class="gt-header__sub">העלאת מסמך אינה מסמנת את הסעיף כהושלם.</small>
           </div>
           <div class="gt-field"><label>הערות</label><textarea data-a="notes" rows="2">${esc(v.notes || '')}</textarea></div>
           <button type="button" class="gt-btn--primary" data-save-admin="${n}">${icon('save')}שמירה</button>
@@ -487,20 +552,21 @@ export async function mountGefenTender(root) {
     const admin = administrative();
     const unassignedAll = admin?.payload?.unassigned_knowledge_items || [];
     const unassigned = pendingKnowledgeItems(unassignedAll);
-    const topics = [...new Set((p.knowledge_items || []).map((i) => i.topic).filter(Boolean))];
-    let items = filterKnowledgeItems(p.knowledge_items || [], {
+    const programId = get()?.id || '';
+    const histItems = showUnassigned ? [] : historicalAsKnowledgeItems(p.historical_answers, programId);
+    const baseItems = showUnassigned ? unassigned : [...(p.knowledge_items || []), ...histItems];
+    const topics = [...new Set(baseItems.map((i) => i.topic).filter(Boolean))];
+    const typeOptions = [...new Set([...KNOWLEDGE_TYPES, 'היסטורי', 'תשובה היסטורית'])];
+    let items = filterKnowledgeItems(baseItems, {
       search: searchKnowledge,
       topic: filterKnowledgeTopic,
       type: filterKnowledgeType,
       verification: filterKnowledgeVer
     });
-    if (showUnassigned) {
-      items = filterKnowledgeItems(unassigned, {
-        search: searchKnowledge,
-        topic: filterKnowledgeTopic,
-        type: filterKnowledgeType,
-        verification: filterKnowledgeVer
-      });
+    if (!showUnassigned && knowledgeSourceFilter === 'historical') {
+      items = items.filter((i) => i._historical || i.type === 'היסטורי' || i.info_kind === 'היסטורי' || i.type === 'תשובה היסטורית');
+    } else if (!showUnassigned && knowledgeSourceFilter === 'current') {
+      items = items.filter((i) => !i._historical && i.type !== 'היסטורי' && i.info_kind !== 'היסטורי');
     }
     const programOptions = rows.filter((r) => r.kind === 'program')
       .map((r) => `<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('');
@@ -510,8 +576,13 @@ export async function mountGefenTender(root) {
       <select data-filter-k-topic><option value="">כל הנושאים</option>${
         topics.map((t) => `<option value="${esc(t)}"${filterKnowledgeTopic === t ? ' selected' : ''}>${esc(t)}</option>`).join('')
       }</select>
-      <select data-filter-k-type><option value="">כל הסוגים</option>${opts(KNOWLEDGE_TYPES, filterKnowledgeType)}</select>
+      <select data-filter-k-type><option value="">כל הסוגים</option>${opts(typeOptions, filterKnowledgeType)}</select>
       <select data-filter-k-ver><option value="">כל הסטטוסים</option>${opts(VERIFICATION_STATUSES, filterKnowledgeVer)}</select>
+      <select data-filter-k-hist>
+        <option value="all"${knowledgeSourceFilter === 'all' ? ' selected' : ''}>כל המקורות</option>
+        <option value="current"${knowledgeSourceFilter === 'current' ? ' selected' : ''}>נוכחי</option>
+        <option value="historical"${knowledgeSourceFilter === 'historical' ? ' selected' : ''}>היסטורי</option>
+      </select>
       <button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>${icon('edit')}הוספת מידע</button>
       <button type="button" class="gt-btn--sm" data-import-catalog>ייבוא מקטלוג</button>
       <button type="button" class="gt-btn--sm" data-import-knowledge-xlsx>${icon('upload')}ייבוא Excel</button>
@@ -521,43 +592,41 @@ export async function mountGefenTender(root) {
       </button>
       <strong>${items.length} פריטים</strong>
     </div>
-    <p class="gt-header__sub">מאגר ידע מצטבר בלבד — אינו תשובה מאושרת להגשה 2027.</p>
+    <p class="gt-header__sub">מאגר ידע מצטבר — אינו תשובה מאושרת ל־2027.</p>
     ${importPreview ? `<div class="gt-panel">
       <div class="gt-panel__title">תצוגה מקדימה לייבוא</div>
       <p>גיליון: ${esc(importPreview.sheet)} · שורות: ${importPreview.total_rows} · לקליטה: ${importPreview.to_ingest}
         · משויכים: ${importPreview.assigned_count} · ממתינים: ${importPreview.pending_count}
         · כפילויות שנמנעו: ${importPreview.duplicates_skipped}</p>
-      <small>גיליונות תוכנית הם תצוגות בלבד ולא נקלטות בנפרד.</small>
       <div class="gt-toolbar" style="margin-top:8px">
         <button type="button" class="gt-btn--primary" data-confirm-knowledge-import>קליטת המידע</button>
         <button type="button" data-cancel-knowledge-import>ביטול</button>
       </div>
     </div>` : ''}
     ${!items.length
-      ? `<div class="gt-empty">${showUnassigned ? 'אין פריטים ממתינים לשיוך.' : 'טרם נוסף מידע.'}
-button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledge>הוספת מידע</button></div>`
+      ? `<div class="gt-empty">${showUnassigned ? 'אין פריטים ממתינים לשיוך.' : 'טרם נוסף מידע.'}</div>`
       : `<div class="gt-overflow"><table class="gt-table"><thead><tr>
           <th>כותרת / שאלה</th><th>נושא</th><th>סוג</th><th>תקציר</th><th>מקור</th><th>שיוך 112</th><th>סטטוס</th><th></th>
         </tr></thead><tbody>${items.map((item) => {
           const open = knowledgeOpen === item.id;
-          const role = knowledgeContentRole(item);
           const factual = isFactualKnowledgeItem(item);
+          const hist = Boolean(item._historical || item.type === 'היסטורי' || item.info_kind === 'היסטורי');
           return `<tr>
             <td>${esc(item.original_question || item.title || '—')}</td>
             <td>${esc(item.topic || '—')}</td>
-            <td>${esc(item.info_kind || item.type || '—')}${factual ? '' : ` ${statusBadge('לא עובדתי', 'muted')}`}</td>
+            <td>${esc(item.info_kind || item.type || '—')}${hist ? ` ${statusBadge('אינו מאושר ל־2027', 'warn')}` : (factual ? '' : ` ${statusBadge('לא עובדתי', 'muted')}`)}</td>
             <td>${esc(String(item.content || '').slice(0, 80))}${String(item.content || '').length > 80 ? '…' : ''}</td>
             <td>${esc(String(item.source || '').slice(0, 40) || '—')}</td>
             <td>${esc((item.related_questions || []).join(', ') || '—')}</td>
             <td>${statusBadge(item.verification_status || 'לא אומת', item.verification_status === 'אומת' ? 'ok' : 'muted')}</td>
             <td><button type="button" class="gt-btn--sm" data-k-open="${esc(item.id)}">${open ? 'סגירה' : 'פתיחה'}</button></td>
           </tr>${open ? `<tr><td colspan="8"><div class="gt-panel">
-            <p class="gt-header__sub">סיווג תוכן: ${esc(role)}${factual ? '' : ' — לא מוצג ל־ChatGPT כעובדה על התוכנית'}</p>
+            ${hist ? '<p class="gt-header__sub">מידע היסטורי ממכרז קודם — אינו מאושר ל־2027.</p>' : ''}
             ${item.original_question ? `<p><strong>שאלה במקור:</strong> ${esc(item.original_question)}</p>` : ''}
             <pre style="white-space:pre-wrap;margin:0;font:inherit">${esc(item.content)}</pre>
             <p class="gt-header__sub">${esc(item.source || '')}</p>
             ${item.control_notes ? `<p class="gt-header__sub">בקרה: ${esc(item.control_notes)}</p>` : ''}
-            <div class="gt-field"><label>שיוך לשאלות 112 (מופרד בפסיקים, לדוגמה 112.13,112.14)</label>
+            ${hist ? '' : `<div class="gt-field"><label>שיוך לשאלות 112</label>
               <input data-k-related="${esc(item.id)}" value="${esc((item.related_questions || []).join(','))}">
             </div>
             <div class="gt-toolbar">
@@ -566,7 +635,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
                 <select data-assign-program="${esc(item.id)}"><option value="">בחרו</option>${programOptions}</select>
               </label>
               <button type="button" class="gt-btn--primary gt-btn--sm" data-assign-knowledge="${esc(item.id)}">שיוך</button>` : ''}
-            </div>
+            </div>`}
           </div></td></tr>` : ''}`;
         }).join('')}</tbody></table></div>`}
     <div class="gt-panel" data-add-knowledge-form hidden>
@@ -590,13 +659,22 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
 
   function historicalPanel(p) {
     const items = p.historical_answers || [];
+    const knowledgeHist = (p.knowledge_items || []).some((i) =>
+      i?.type === 'היסטורי' || i?.info_kind === 'היסטורי' || i?.type === 'תשובה היסטורית' || i?.content_role === 'historical'
+    );
+    const hasPriorKnowledge = knowledgeHist || Boolean((p.knowledge_items || []).length && !items.length);
     return `<div class="gt-toolbar">
       <strong>תשובות היסטוריות</strong>
       <button type="button" class="gt-btn--primary gt-btn--sm" data-import-historical>${icon('upload')}ייבוא מידע</button>
       <input type="file" accept="application/json,.json" data-historical-file hidden>
     </div>
     ${!items.length
-      ? '<div class="gt-empty">טרם יובאו תשובות היסטוריות.</div>'
+      ? (hasPriorKnowledge
+        ? `<div class="gt-panel">
+            <p>המידע ממכרזים קודמים זמין במאגר הידע</p>
+            <button type="button" class="gt-btn--primary gt-btn--sm" data-filter-k-hist="historical" data-program-sub="knowledge">מעבר למאגר הידע</button>
+          </div>`
+        : '<div class="gt-empty">טרם יובאו תשובות היסטוריות.</div>')
       : `<div class="gt-overflow"><table class="gt-table"><thead><tr>
           <th>שנה</th><th>שאלה</th><th>מקור</th><th>שיוך</th><th>תשובה קודמת</th>
         </tr></thead><tbody>${items.map((h) => `<tr>
@@ -648,36 +726,122 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     } else if (programSub === 'experience') {
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       const hasRecFolder = Boolean(RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] || p.recommendations_folder_url);
-      body = field('experience', 'ניסיון בהפעלה', p.experience || '')
-        + `<div class="gt-field"><label>מסמכי ניסיון</label>${renderDocumentUploader({
+      const expRows = normalizeExperienceRecords(p.experience_records);
+      const recRows = normalizeRecommendationRecords(p.recommendation_records);
+      body = `<div class="gt-panel"><div class="gt-panel__title">רשומות ניסיון</div>
+        <div class="gt-toolbar"><button type="button" class="gt-btn--sm gt-btn--primary" data-exp-add>הוספת רשומה</button></div>
+        <div class="gt-overflow" data-exp-table><table class="gt-table"><thead><tr>
+          <th>ארגון</th><th>תקופה</th><th>קהל</th><th>פעילות</th><th>איש קשר</th><th>אסמכתא</th><th>הערות</th><th></th>
+        </tr></thead><tbody>${expRows.map((r) => `<tr>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="organization" value="${esc(r.organization)}"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="period" value="${esc(r.period)}"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="audience" value="${esc(r.audience)}"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="activity" value="${esc(r.activity)}"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="contact" value="${esc(r.contact)}"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="evidence_url" value="${esc(r.evidence_url)}" placeholder="URL"></td>
+          <td><input data-exp-id="${esc(r.id)}" data-exp-field="notes" value="${esc(r.notes)}"></td>
+          <td><button type="button" class="gt-btn--sm" data-exp-remove="${esc(r.id)}">הסרה</button></td>
+        </tr>`).join('') || '<tr><td colspan="8"><div class="gt-empty">טרם נוספו רשומות ניסיון.</div></td></tr>'}
+        </tbody></table></div>
+        <div class="gt-field"><label>מסמכי ניסיון</label>${renderDocumentUploader({
           docs: p.experience_documents, area: 'experience', scopeKey: `program:${row.id}:experience_documents`
-        })}</div>`
-        + field('recommendations', 'המלצות (טקסט)', p.recommendations || '')
-        + `<div class="gt-field"><label>מסמכי המלצות</label>${renderDocumentUploader({
+        })}</div>
+        <details class="gt-details"><summary>הערות כלליות (טקסט ישן)</summary>
+          <div class="gt-details__body">${field('experience', 'הערות ניסיון', p.experience || '')}</div>
+        </details>
+      </div>
+      <div class="gt-panel"><div class="gt-panel__title">המלצות</div>
+        <div class="gt-toolbar">
+          <button type="button" class="gt-btn--sm gt-btn--primary" data-rec-add>הוספת המלצה</button>
+          ${hasRecFolder
+            ? `<a class="gt-btn--sm" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a>`
+            : '<span class="gt-badge gt-badge--muted">אין תיקיית המלצות משויכת</span>'}
+        </div>
+        <div class="gt-overflow" data-rec-table><table class="gt-table"><thead><tr>
+          <th>ארגון</th><th>ממליץ</th><th>תפקיד</th><th>יצירת קשר</th><th>תאריך</th><th>מסמך</th><th>סטטוס</th><th>הערות</th><th></th>
+        </tr></thead><tbody>${recRows.map((r) => `<tr>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="organization" value="${esc(r.organization)}"></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="recommender" value="${esc(r.recommender)}"></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="role" value="${esc(r.role)}"></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="contact" value="${esc(r.contact)}"></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="date" type="date" value="${esc(r.date)}"></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="document_url" value="${esc(r.document_url)}" placeholder="URL"></td>
+          <td><select data-rec-id="${esc(r.id)}" data-rec-field="status">${opts(RECOMMENDATION_STATUSES, r.status)}</select></td>
+          <td><input data-rec-id="${esc(r.id)}" data-rec-field="notes" value="${esc(r.notes)}"></td>
+          <td><button type="button" class="gt-btn--sm" data-rec-remove="${esc(r.id)}">הסרה</button></td>
+        </tr>`).join('') || '<tr><td colspan="9"><div class="gt-empty">טרם נוספו המלצות.</div></td></tr>'}
+        </tbody></table></div>
+        <div class="gt-field"><label>מסמכי המלצות</label>${renderDocumentUploader({
           docs: p.recommendations_documents, area: 'recommendations', scopeKey: `program:${row.id}:recommendations_documents`
-        })}</div>`
-        + `<div class="gt-toolbar" style="margin-top:8px">
-            ${hasRecFolder
-              ? `<a class="gt-btn--sm gt-btn--primary" style="display:inline-flex" target="_blank" rel="noopener noreferrer" href="${esc(recUrl)}">${icon('folder')}תיקיית המלצות</a>`
-              : '<span class="gt-badge gt-badge--muted">אין תיקיית המלצות משויכת</span>'}
-            <span class="gt-header__sub">העלאה לתיקיית SharePoint של התוכנית — ללא סריקת תוכן</span>
-          </div>`;
+        })}</div>
+        <details class="gt-details"><summary>הערות כלליות (טקסט ישן)</summary>
+          <div class="gt-details__body">${field('recommendations', 'הערות המלצות', p.recommendations || '')}</div>
+        </details>
+      </div>`;
     } else if (programSub === 'people') {
       const people = rows.filter((r) => r.kind === 'operator');
       const dev = new Set(p.developer_ids || []);
       const ops = new Set(p.operator_ids || []);
-      body = field('developers', 'מפתחים (טקסט חופשי)', p.developers || '')
-        + field('operators', 'מפעילים (טקסט חופשי)', p.operators || '')
-        + `<div class="gt-overflow"><table class="gt-table"><thead><tr><th>שם</th><th>מפתח</th><th>מפעיל</th><th>הכשרה</th></tr></thead><tbody>
-          ${people.map((r) => `<tr>
+      const assigned = people.filter((r) => dev.has(r.id) || ops.has(r.id));
+      const q = peoplePickerQ.trim().toLowerCase();
+      const hits = q.length >= 2
+        ? people.filter((r) => !dev.has(r.id) && !ops.has(r.id)
+          && `${r.title} ${r.payload?.roles || ''}`.toLowerCase().includes(q)).slice(0, 12)
+        : [];
+      body = `<div class="gt-toolbar">
+        <input type="search" data-people-picker-q placeholder="חיפוש להוספה ממאגר" value="${esc(peoplePickerQ)}">
+        <span class="gt-header__sub">${q.length < 2 ? 'הקלידו לפחות 2 תווים לחיפוש' : (hits.length ? `${hits.length} תוצאות` : 'לא נמצאו')}</span>
+      </div>
+      ${hits.length ? `<div class="gt-panel"><div class="gt-panel__title">הוספה ממאגר</div>
+        <div class="gt-overflow"><table class="gt-table"><thead><tr><th>שם</th><th>תפקיד</th><th></th></tr></thead><tbody>
+          ${hits.map((r) => `<tr>
             <td>${esc(r.title)}</td>
-            <td><input type="checkbox" data-dev-id value="${esc(r.id)}"${dev.has(r.id) ? ' checked' : ''}></td>
-            <td><input type="checkbox" data-op-id value="${esc(r.id)}"${ops.has(r.id) ? ' checked' : ''}></td>
-            <td>${esc(r.payload?.training_hours != null ? `${r.payload.training_hours} שעות` : 'טרם הוזן')}</td>
-          </tr>`).join('') || '<tr><td colspan="4"><div class="gt-empty">אין רשומות במאגר</div></td></tr>'}
-        </tbody></table></div>`;
+            <td>${esc(r.payload?.roles || '—')}</td>
+            <td><button type="button" class="gt-btn--sm gt-btn--primary" data-people-add="${esc(r.id)}">הוספה</button></td>
+          </tr>`).join('')}
+        </tbody></table></div></div>` : ''}
+      <div class="gt-overflow"><table class="gt-table"><thead><tr>
+        <th>שם</th><th>מפתח</th><th>מפעיל</th><th>השכלה</th><th>הכשרה</th><th>ניסיון</th><th>אימות</th>
+      </tr></thead><tbody>
+        ${assigned.map((r) => `<tr>
+          <td>${esc(r.title)}</td>
+          <td><input type="checkbox" data-dev-id value="${esc(r.id)}"${dev.has(r.id) ? ' checked' : ''}></td>
+          <td><input type="checkbox" data-op-id value="${esc(r.id)}"${ops.has(r.id) ? ' checked' : ''}></td>
+          <td>${esc(String(r.payload?.education || '—').slice(0, 48))}</td>
+          <td>${esc(r.payload?.training_hours != null ? `${r.payload.training_hours} שעות` : String(r.payload?.training || '—').slice(0, 40))}</td>
+          <td>${esc(String(r.payload?.experience || '—').slice(0, 48))}</td>
+          <td>${statusBadge(r.payload?.verification_status || 'טרם נבדק',
+            r.payload?.verification_status === 'נבדק' ? 'ok' : 'muted')}</td>
+        </tr>`).join('') || '<tr><td colspan="7"><div class="gt-empty">לא שויכו אנשי צוות. חפשו במאגר להוספה.</div></td></tr>'}
+      </tbody></table></div>`;
     } else if (programSub === 'syllabus') {
-      body = field('syllabus', 'סילבוס / תוכנית למידה', p.syllabus || '');
+      const allSessions = normalizeSyllabusSessions(p.syllabus_sessions);
+      const sessions = allSessions.filter((s) => !syllabusAge || s.age_stage === syllabusAge);
+      body = `<div class="gt-toolbar">
+        <label>שכבת גיל <select data-syllabus-age>${opts(SYLLABUS_AGE_STAGES, syllabusAge)}</select></label>
+        <button type="button" class="gt-btn--sm gt-btn--primary" data-syl-add>הוספת מפגש</button>
+        <strong>${sessions.length} מפגשים</strong>
+      </div>
+      <div class="gt-overflow" data-syl-table><table class="gt-table"><thead><tr>
+        <th>#</th><th>נושא</th><th>תוכן</th><th>מטרות</th><th>שיטות</th><th>מיומנויות וערכים</th><th></th>
+      </tr></thead><tbody>${sessions.map((s, i) => `<tr>
+        <td><input type="number" min="1" style="width:4rem" data-syl-id="${esc(s.id)}" data-syl-field="meeting_number" value="${esc(s.meeting_number)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="age_stage" value="${esc(s.age_stage)}"></td>
+        <td><input data-syl-id="${esc(s.id)}" data-syl-field="topic" value="${esc(s.topic)}"></td>
+        <td><input data-syl-id="${esc(s.id)}" data-syl-field="content" value="${esc(s.content)}"></td>
+        <td><input data-syl-id="${esc(s.id)}" data-syl-field="goals" value="${esc(s.goals)}"></td>
+        <td><input data-syl-id="${esc(s.id)}" data-syl-field="methods" value="${esc(s.methods)}"></td>
+        <td><input data-syl-id="${esc(s.id)}" data-syl-field="skills_values" value="${esc(s.skills_values)}"></td>
+        <td>
+          <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="down" ${i === sessions.length - 1 ? 'disabled' : ''}>↓</button>
+          <button type="button" class="gt-btn--sm" data-syl-remove="${esc(s.id)}">הסרה</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="7"><div class="gt-empty">טרם נוספו מפגשים לשכבה זו.</div></td></tr>'}
+      </tbody></table></div>
+      <details class="gt-details"><summary>הערות סילבוס (טקסט ישן)</summary>
+        <div class="gt-details__body">${field('syllabus', 'הערות סילבוס', p.syllabus || '')}</div>
+      </details>`;
     } else {
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       body = field('drive_folder_url', 'תיקיית Google Drive', p.drive_folder_url || '')
@@ -783,38 +947,60 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   }
 
   function documentsTab() {
-    const groups = [
-      ['מסמכי מכרז', SHAREPOINT_FOLDERS.slice(0, 1)],
-      ['תבניות רשמיות', SHAREPOINT_FOLDERS.slice(1, 2)],
-      ['מסמכים ארגוניים', SHAREPOINT_FOLDERS.slice(2, 3)],
-      ['חומרי תוכניות', SHAREPOINT_FOLDERS.slice(3, 5)],
-      ['מסמכי מפתחים ומפעילים', SHAREPOINT_FOLDERS.slice(5, 7)],
-      ['מסמכי הגשה', SHAREPOINT_FOLDERS.slice(9, 11)]
-    ];
     const program = get()?.kind === 'program' ? get() : programsWith112(rows)[0];
+    const listedPath = docsListing?.folder_path || '';
+    const listedOk = Boolean(docsListing && Array.isArray(docsListing.items));
     return `<div class="gt-toolbar"><strong>מנהל מסמכים</strong>
-      <a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${SHAREPOINT_BASE}">${icon('folder')}שורש SharePoint</a></div>
+      <a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${SHAREPOINT_BASE}">${icon('folder')}שורש SharePoint</a>
+      <button type="button" class="gt-btn--sm" data-docs-root>${icon('search')}עיון בשורש</button>
+      ${docsFolderPath ? `<span class="gt-header__sub">${esc(docsFolderPath)}</span>` : ''}
+    </div>
       ${program ? `<div class="gt-panel">
-        <div class="gt-panel__title">העלאת אסמכתאות לתוכנית · ${esc(program.title)}</div>
+        <div class="gt-panel__title">אסמכתאות תוכנית · ${esc(program.title)}</div>
         ${renderDocumentUploader({
           docs: program.payload?.documents,
           area: 'evidence',
           scopeKey: `program:${program.id}:documents`
         })}
-        <p class="gt-header__sub">הקבצים נשמרים בתיקיית SharePoint «08 - אישורים ואסמכתאות». יש לבחור תוכנית בלשונית תוכניות לעבודה על תוכנית אחרת.</p>
+        <p class="gt-header__sub">נשמר בתיקיית «08 - אישורים ואסמכתאות».</p>
       </div>` : ''}
-      ${groups.map(([title, folders]) => `<div class="gt-panel">
-        <div class="gt-panel__title">${esc(title)}</div>
+      <div class="gt-panel">
+        <div class="gt-panel__title">תיקיות SharePoint</div>
         <div class="gt-overflow"><table class="gt-table"><thead><tr>
-          <th></th><th>שם</th><th>מקור</th><th>סטטוס</th><th>פעולות</th>
-        </tr></thead><tbody>${folders.map((f) => `<tr>
-          <td>${fileIcon('folder')}</td>
-          <td>${esc(f)}</td>
-          <td>SharePoint</td>
-          <td>${statusBadge('זמין', 'info')}</td>
-          <td>${link(f, 'פתיחה')}</td>
-        </tr>`).join('')}</tbody></table></div>
-      </div>`).join('')}
+          <th>קטגוריה / שם</th><th>סוג</th><th>עודכן</th><th>פעולות</th>
+        </tr></thead><tbody>${SHAREPOINT_FOLDERS.map((f) => {
+          const full = `${SP_ROOT}/${f}`;
+          const isListed = listedOk && (listedPath === full || listedPath.endsWith(`/${f}`));
+          return `<tr>
+            <td>${esc(f)}</td>
+            <td>תיקייה</td>
+            <td>${isListed ? 'נבדק' : '—'}</td>
+            <td>
+              ${link(f, 'פתיחה')}
+              <button type="button" class="gt-btn--sm" data-docs-browse="${esc(full)}">עיון</button>
+            </td>
+          </tr>`;
+        }).join('')}</tbody></table></div>
+      </div>
+      ${listedOk ? `<div class="gt-panel">
+        <div class="gt-panel__title">תוכן תיקייה · ${esc(listedPath.replace(SP_ROOT + '/', '') || 'שורש')}</div>
+        <div class="gt-overflow"><table class="gt-table"><thead><tr>
+          <th>שם</th><th>סוג</th><th>עודכן</th><th>פעולות</th>
+        </tr></thead><tbody>${(docsListing.items || []).map((item) => {
+          const isFolder = Boolean(item.is_folder);
+          const childPath = isFolder ? `${listedPath}/${item.name}` : '';
+          return `<tr>
+            <td>${esc(item.name || '—')}</td>
+            <td>${isFolder ? 'תיקייה' : 'קובץ'}</td>
+            <td>${esc(item.updated_at ? fmtDate(item.updated_at) : '—')}</td>
+            <td>
+              ${item.url ? `<a class="gt-doc-link" target="_blank" rel="noopener noreferrer" href="${esc(item.url)}">${icon('link')}פתיחה</a>` : '—'}
+              ${isFolder ? `<button type="button" class="gt-btn--sm" data-docs-browse="${esc(childPath)}">עיון</button>` : ''}
+            </td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="4"><div class="gt-empty">התיקייה ריקה.</div></td></tr>'}
+        </tbody></table></div>
+      </div>` : ''}
       <div class="gt-panel">
         <div class="gt-panel__title">טפסים 159 / 160 / 174</div>
         <div class="gt-overflow"><table class="gt-table"><thead><tr>
@@ -837,7 +1023,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
             </td>
           </tr>`;
         }).join('')}</tbody></table></div>
-        <p class="gt-header__sub">אין לייצר קבצי Excel רשמיים במקום התבניות. העלאת תבנית מקור → מילוי הדרגתי → הפקה תוך שמירת מבנה התבנית. בשלב זה לא ממלאים נתוני ניסיון/מפתחים/מפעילים/סילבוס בפועל.</p>
+        <p class="gt-header__sub">העלאת תבנית מקור ואז הפקה — ללא יצירת קבצים רשמיים במקום התבנית.</p>
       </div>`;
   }
 
@@ -846,32 +1032,34 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     const adminDone = administrativeCompleted(administrative());
     const inProgress = list.filter((x) => x.work_state === 'בתהליך').length;
     const pending = list.filter((x) => x.drafts > 0).length;
-    const ready = list.filter((x) => x.approved === x.total && x.total > 0).length;
+    const readyN = list.filter((x) => x.approved === x.total && x.total > 0).length;
     return `<div class="gt-toolbar">
       <strong>${list.length} תוכניות</strong>
       <span class="gt-badge gt-badge--info">בתהליך ${inProgress}</span>
       <span class="gt-badge gt-badge--warn">טיוטות ${pending}</span>
-      <span class="gt-badge gt-badge--ok">תשובות מאושרות ${ready}</span>
+      <span class="gt-badge gt-badge--ok">תשובות מאושרות ${readyN}</span>
       <span class="gt-badge gt-badge--muted">מנהלי ${adminDone}/19</span>
-      <button type="button" class="gt-btn--sm" data-apply-catalog-112>החלת קטלוג 112</button>
-      <small>אחוז מילוי אינו שווה ערך לעמידה בתנאי סף</small>
     </div>
+    <p class="gt-header__sub">מדד התשובות אינו שווה ערך לעמידה בתנאי סף.</p>
     <div class="gt-overflow"><table class="gt-table"><thead><tr>
-      <th>תוכנית</th><th>תשובות מאושרות מתוך 41</th><th>תנאי סף</th><th>מפתחים</th><th>מפעילים</th>
+      <th>תוכנית</th><th>תשובות מאושרות</th><th>תנאי סף</th><th>מפתחים</th><th>מפעילים</th>
       <th>ניסיון</th><th>המלצות</th><th>סילבוס</th><th>מסמכים</th><th>מצב עבודה</th>
-    </tr></thead><tbody>${list.map((item) => `<tr class="gt-row--clickable" data-goto-submission="${esc(item.row.id)}">
+    </tr></thead><tbody>${list.map((item) => {
+      const id = item.row.id;
+      return `<tr>
       <td>${esc(item.row.title)}</td>
       <td><span class="gt-progress"><span style="width:${item.progress_pct}%"></span></span> ${item.approved}/${item.total}
-        ${item.missing ? `<button type="button" class="gt-btn--sm" data-goto-submission="${esc(item.row.id)}">${item.missing} חסרים</button>` : ''}</td>
-      <td>${statusBadge(item.statuses.threshold, item.statuses.threshold === 'נבדק' ? 'ok' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.developers, item.statuses.developers === 'הוזן' ? 'info' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.operators, item.statuses.operators === 'הוזן' ? 'info' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.experience, item.statuses.experience === 'הוזן' ? 'info' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.recommendations, item.statuses.recommendations === 'הוזן' ? 'info' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.syllabus, item.statuses.syllabus === 'הוזן' ? 'info' : 'muted')}</td>
-      <td>${statusBadge(item.statuses.documents, item.statuses.documents === 'הוזן' ? 'info' : 'muted')}</td>
+        ${item.missing ? `<button type="button" class="gt-btn--sm" data-goto-submission="${esc(id)}">${item.missing} חסרים</button>` : ''}</td>
+      <td>${readyCell(item.statuses.threshold, { gotoSubmission: true, programId: id })}</td>
+      <td>${readyCell(item.statuses.developers, { openSub: 'people', programId: id })}</td>
+      <td>${readyCell(item.statuses.operators, { openSub: 'people', programId: id })}</td>
+      <td>${readyCell(item.statuses.experience, { openSub: 'experience', programId: id })}</td>
+      <td>${readyCell(item.statuses.recommendations, { openSub: 'experience', programId: id })}</td>
+      <td>${readyCell(item.statuses.syllabus, { openSub: 'syllabus', programId: id })}</td>
+      <td>${readyCell(item.statuses.documents, { openSub: 'documents', programId: id })}</td>
       <td>${statusBadge(item.work_state, item.work_state === 'תשובות מאושרות' ? 'ok' : 'info')}</td>
-    </tr>`).join('') || '<tr><td colspan="10"><div class="gt-empty">אין תוכניות עם שיוך 112</div></td></tr>'}</tbody></table></div>`;
+    </tr>`;
+    }).join('') || '<tr><td colspan="10"><div class="gt-empty">אין תוכניות עם שיוך 112</div></td></tr>'}</tbody></table></div>`;
   }
 
   function renderQuestionInput(a, q) {
@@ -966,16 +1154,21 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     const hist = historicalForQuestion(row.payload?.historical_answers, current.question_id, current.label);
     const limitTarget = limitAppliesToExtra(current) ? 'טקסט משלים' : 'תשובה';
 
+    const type = current.answer_type || qObj.answer_type || 'text';
+    const showCount = !(type === 'single_choice' || type === 'multi_choice')
+      || Boolean(current.extra_text) || type === 'yes_no_text'
+      || Boolean(current.limit) || Boolean(current.limit_words);
+
     const nav = CHAPTERS_112.map((ch) => {
       const qs = answers.filter((a) => Number(a.number) >= ch.from && Number(a.number) <= ch.to);
-      return `<div class="gt-qnav__chapter">${esc(ch.label)}</div>${qs.map((a) => {
-        const i = answers.indexOf(a);
-        const s = answerState(row, a);
-        return `<button type="button" class="gt-qnav__item${i === currentIdx ? ' is-active' : ''}" data-q-goto="${i}">
-          <span class="gt-qnav__dot gt-qnav__dot--${s === 'empty' ? '' : s}"></span>
-          <span>${a.number}. ${esc(String(a.label).slice(0, 42))}${String(a.label).length > 42 ? '…' : ''}</span>
-        </button>`;
-      }).join('')}`;
+      return `<div class="gt-qnav__chapter">${esc(ch.label)}</div>
+        <div class="gt-qnav__grid">${qs.map((a) => {
+          const i = answers.indexOf(a);
+          const s = answerState(row, a);
+          return `<button type="button" class="gt-qnav__num${i === currentIdx ? ' is-active' : ''}" data-q-goto="${i}" title="${esc(a.label)}">
+            ${a.number}<span class="gt-qnav__dot gt-qnav__dot--${s === 'empty' ? '' : s}"></span>
+          </button>`;
+        }).join('')}</div>`;
     }).join('');
 
     const limitLabel = current.limit_words && current.limit
@@ -1016,13 +1209,13 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
           </div>
         </details>
         <div class="gt-q-actions">
-          <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקת נתונים ל־ChatGPT</button>
+          <button type="button" class="gt-btn--primary" data-context-copy="${currentIdx}">${icon('copy')}העתקת הקשר לשאלה</button>
         </div>
         <div class="gt-answer-area" data-answer-block="${currentIdx}">
           ${renderQuestionInput(current, qObj)}
         </div>
         <div class="gt-toolbar">
-          <span class="gt-count${overChars || overWords ? ' is-over' : ''}" data-answer-count>${limitLabel}${overChars || overWords ? ' · חריגה מהמגבלה' : ''}</span>
+          ${showCount ? `<span class="gt-count${overChars || overWords ? ' is-over' : ''}" data-answer-count>${limitLabel}${overChars || overWords ? ' · חריגה מהמגבלה' : ''}</span>` : '<span></span>'}
           <span data-gt-save-hint class="gt-header__sub"></span>
         </div>
         <div class="gt-q-actions">
@@ -1231,7 +1424,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace],[data-exp-add],[data-exp-remove],[data-rec-add],[data-rec-remove],[data-syl-add],[data-syl-remove],[data-syl-move],[data-docs-browse],[data-docs-root],[data-open-program-sub],[data-people-add],[data-filter-k-hist]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1250,6 +1443,22 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     if (t.matches('[data-list-back]')) {
       if (!pendingLeave()) return;
       selected = '';
+      draw();
+      return;
+    }
+    if (t.matches('[data-open-program-sub]')) {
+      const pid = t.dataset.programId || selected;
+      const sub = t.dataset.openProgramSub;
+      if (pid) selected = pid;
+      if (sub) programSub = sub;
+      tab = 'program';
+      draw();
+      return;
+    }
+    if (t.matches('[data-filter-k-hist]')) {
+      const v = t.dataset.filterKHist;
+      if (v === 'all' || v === 'current' || v === 'historical') knowledgeSourceFilter = v;
+      if (t.dataset.programSub) programSub = t.dataset.programSub;
       draw();
       return;
     }
@@ -1589,7 +1798,128 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       toast('הופק קובץ על בסיס התבנית (ללא מילוי נתונים)');
       return;
     }
-    if (t.matches('[data-apply-catalog-112]')) {
+    if (t.matches('[data-exp-add]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      synced.experience_records = normalizeExperienceRecords(synced.experience_records).concat([emptyExperienceRecord()]);
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-exp-remove]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      const id = t.dataset.expRemove;
+      synced.experience_records = normalizeExperienceRecords(synced.experience_records).filter((r) => r.id !== id);
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-rec-add]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      synced.recommendation_records = normalizeRecommendationRecords(synced.recommendation_records).concat([emptyRecommendationRecord()]);
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-rec-remove]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      const id = t.dataset.recRemove;
+      synced.recommendation_records = normalizeRecommendationRecords(synced.recommendation_records).filter((r) => r.id !== id);
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-syl-add]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      const list = normalizeSyllabusSessions(synced.syllabus_sessions);
+      const same = list.filter((s) => s.age_stage === syllabusAge);
+      list.push(emptySyllabusSession(syllabusAge, same.length + 1));
+      synced.syllabus_sessions = list;
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-syl-remove]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      const id = t.dataset.sylRemove;
+      synced.syllabus_sessions = normalizeSyllabusSessions(synced.syllabus_sessions).filter((s) => s.id !== id);
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-syl-move]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      const id = t.dataset.sylMove;
+      const dir = t.dataset.dir || 'down';
+      // Reorder within the active age stage only.
+      const all = normalizeSyllabusSessions(synced.syllabus_sessions);
+      const stage = all.filter((s) => s.age_stage === syllabusAge);
+      const rest = all.filter((s) => s.age_stage !== syllabusAge);
+      synced.syllabus_sessions = [...rest, ...reorderSyllabusSessions(stage, id, dir)];
+      row.payload = synced;
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-people-add]')) {
+      const row = get();
+      if (!row) return;
+      const id = t.dataset.peopleAdd;
+      const ops = new Set(row.payload?.operator_ids || []);
+      ops.add(id);
+      row.payload = { ...row.payload, operator_ids: [...ops] };
+      peoplePickerQ = '';
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-docs-root]')) {
+      setStatus('טוען תיקיית שורש...', '');
+      try {
+        const data = await gefenSharePointInvoke('list_root', {});
+        docsListing = data;
+        docsFolderPath = data?.folder_path || SP_ROOT;
+        setStatus('הרשימה עודכנה', 'ok');
+        draw();
+      } catch (e) {
+        setStatus(`עיון נכשל: ${e.message}`, 'err');
+      }
+      return;
+    }
+    if (t.matches('[data-docs-browse]')) {
+      const folderPath = t.dataset.docsBrowse || '';
+      setStatus('טוען תיקייה...', '');
+      try {
+        const data = await gefenSharePointInvoke('list', { folder_path: folderPath });
+        docsListing = data;
+        docsFolderPath = data?.folder_path || folderPath;
+        setStatus('הרשימה עודכנה', 'ok');
+        draw();
+      } catch (e) {
+        setStatus(`עיון נכשל: ${e.message}`, 'err');
+      }
+      return;
+    }
+        if (t.matches('[data-apply-catalog-112]')) {
       let ok = 0;
       for (const prog of programsWith112(rows)) {
         const { index, association } = association112(prog.payload);
@@ -1636,6 +1966,9 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
     if (t.matches('[data-filter-k-type]')) { filterKnowledgeType = t.value; draw(); return; }
     if (t.matches('[data-filter-k-ver]')) { filterKnowledgeVer = t.value; draw(); return; }
     if (t.matches('[data-filter-k-topic]')) { filterKnowledgeTopic = t.value; draw(); return; }
+    if (t.matches('[data-filter-k-hist]')) { knowledgeSourceFilter = t.value || 'all'; draw(); return; }
+    if (t.matches('[data-syllabus-age]')) { syllabusAge = t.value || 'כללי'; draw(); return; }
+    if (t.matches('[data-people-picker-q]')) { peoplePickerQ = t.value || ''; draw(); return; }
     if (t.matches('[data-knowledge-xlsx-file]') && t.files?.[0]) {
       const file = t.files[0];
       const reader = new FileReader();
@@ -1744,7 +2077,7 @@ button type="button" class="gt-btn--primary gt-btn--sm" data-toggle-add-knowledg
       reader.readAsText(t.files[0]);
       return;
     }
-    if (t.matches('[data-field], [data-a], [data-q-text], [data-q-extra], [data-q-choice], [data-q-multi], [data-dev-id], [data-op-id]')) {
+    if (t.matches('[data-field], [data-a], [data-q-text], [data-q-extra], [data-q-choice], [data-q-multi], [data-dev-id], [data-op-id], [data-exp-field], [data-rec-field], [data-syl-field]')) {
       scheduleAutosave();
       const count = root.querySelector('[data-answer-count]');
       if (count && (t.matches('[data-q-text]') || t.matches('[data-q-extra]'))) {

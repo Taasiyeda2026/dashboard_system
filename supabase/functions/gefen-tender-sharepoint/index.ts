@@ -239,6 +239,54 @@ async function handle(req: Request) {
     return respond({ deleted: true });
   }
 
+  if (action === "list") {
+    const folderPath = txt(body.folder_path) || resolveFolderPath(body);
+    const folder = await ensureFolder(token, folderPath);
+    const children = await graph(
+      token,
+      `/items/${encodeURIComponent(folder.id)}/children?$select=id,name,webUrl,size,lastModifiedDateTime,file,folder&$top=200`
+    );
+    const items = (children?.value || []).map((item: Record<string, unknown>) => ({
+      id: item.id,
+      name: item.name,
+      url: item.webUrl || null,
+      size_bytes: item.size || 0,
+      updated_at: item.lastModifiedDateTime || null,
+      is_folder: Boolean(item.folder),
+      mime_type: (item.file as { mimeType?: string } | undefined)?.mimeType || null
+    }));
+    return respond({
+      folder_path: folderPath,
+      folder_id: folder.id,
+      folder_url: folder.webUrl || null,
+      items
+    });
+  }
+
+  if (action === "list_root") {
+    const folderPath = ROOT;
+    const folder = await ensureFolder(token, folderPath);
+    const children = await graph(
+      token,
+      `/items/${encodeURIComponent(folder.id)}/children?$select=id,name,webUrl,size,lastModifiedDateTime,file,folder&$top=50`
+    );
+    const items = (children?.value || []).map((item: Record<string, unknown>) => ({
+      id: item.id,
+      name: item.name,
+      url: item.webUrl || null,
+      size_bytes: item.size || 0,
+      updated_at: item.lastModifiedDateTime || null,
+      is_folder: Boolean(item.folder),
+      mime_type: (item.file as { mimeType?: string } | undefined)?.mimeType || null
+    }));
+    return respond({
+      folder_path: folderPath,
+      folder_id: folder.id,
+      folder_url: folder.webUrl || null,
+      items
+    });
+  }
+
   throw new HttpFailure("פעולה לא מוכרת.", 400);
 }
 
