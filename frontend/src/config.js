@@ -724,3 +724,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-reset-active-permissions
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-spin-off-poster-sso-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-poster-management-20261128-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-poster-main-sidebar-20261128-v1`;

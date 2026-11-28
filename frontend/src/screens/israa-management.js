@@ -1,7 +1,6 @@
-import { POSTER_MANAGEMENT_URL } from '../poster-navigation.js';
 import { escapeHtml } from './shared/html.js';
 import { dsScreenStack } from './shared/layout.js';
-import { canManageAllPosters, canViewIsraaManagement } from '../permissions.js';
+import { canViewIsraaManagement } from '../permissions.js';
 import { activitiesTable } from '../israa-proposal-items.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { bindActivityEditForm } from './shared/bind-activity-edit-form.js';
@@ -430,9 +429,8 @@ function simPanelHtml(rows, editingId, editData, addingNew, newData, error, load
 
 // ── Tab bar + full HTML ────────────────────────────────────────────────────────
 
-function tabBarHtml(activeTab, user) {
+function tabBarHtml(activeTab) {
   return `<div class="israa-tabbar" role="tablist" dir="rtl">
-      ${canManageAllPosters(user) ? '<button class="israa-tab" data-israa-posters role="tab">פוסטרים</button>' : ''}
       <button class="israa-tab${activeTab === 'table' ? ' is-active' : ''}" data-israa-tab="table" role="tab">מעקב הצעות</button>
       <button class="israa-tab${activeTab === 'activities' ? ' is-active' : ''}" data-israa-tab="activities" role="tab">פעילויות</button>
       <button class="israa-tab${activeTab === 'simulator' ? ' is-active' : ''}" data-israa-tab="simulator" role="tab">סימולטור</button>
@@ -491,14 +489,14 @@ function activitiesPanelHtml(settings = {}) {
   return `<div class="israa-activities-panel">${cards.join('') || '<div class="israa-empty">טרם נבחרו פעילויות. פתחי הצעה ובחרי „העבר לפעילויות”.</div>'}</div>`;
 }
 
-function fullHtml(activeTab, actNames, settings = {}, user = {}) {
+function fullHtml(activeTab, actNames, settings = {}) {
   if (activeTab === 'simulator') {
-    return tabBarHtml(activeTab, user) +
+    return tabBarHtml(activeTab) +
       `<div class="sim-panel">${simPanelHtml(_simRows, _simEditingId, _simEditData, _simAddingNew, _simNewData, _simError, _simLoading, _simCollab)}</div>`;
   }
-  if (activeTab === 'activities') return tabBarHtml(activeTab, user) + activitiesPanelHtml(settings);
+  if (activeTab === 'activities') return tabBarHtml(activeTab) + activitiesPanelHtml(settings);
 
-  return tabBarHtml(activeTab, user) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
+  return tabBarHtml(activeTab) + progTableHtml(_rows, _editingId, _editData, _addingNew, _newData, _error, _expandedId, actNames);
 }
 
 // ── CSV export ─────────────────────────────────────────────────────────────────
@@ -1212,7 +1210,7 @@ export const israaManagementScreen = {
       _rows = Array.isArray(data.rows) ? data.rows : _rows;
     }
 
-    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {}, state?.user) + '</div>');
+    return dsScreenStack(ISRAA_CSS + '<div class="israa-mgmt">' + fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {}) + '</div>');
   },
 
   bind({ root, state, api }) {
@@ -1221,7 +1219,7 @@ export const israaManagementScreen = {
 
     function repaint() {
       if (!root.contains(mgmt)) return;
-      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {}, state?.user);
+      mgmt.innerHTML = fullHtml(_activeTab, getActivityNames(state), state?.clientSettings || {});
       bindIsraaActivityEditors();
     }
 
@@ -1285,10 +1283,6 @@ export const israaManagementScreen = {
     mgmt.addEventListener('click', async (e) => {
       const t = e.target;
 
-      if (t.closest('[data-israa-posters]')) {
-        if (canManageAllPosters(state.user)) window.open(POSTER_MANAGEMENT_URL, '_blank', 'noopener');
-        return;
-      }
       const tabBtn = t.closest('[data-israa-tab]');
       if (tabBtn) {
         _activeTab = tabBtn.dataset.israaTab;
