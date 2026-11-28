@@ -1,28 +1,19 @@
 import { EXCEL_FORMS, SHAREPOINT_BASE } from './constants.js';
 import { answerText, isFinalAnswer } from './final-answers.js';
 import { buildSubmissionAnswers } from './questionnaires.js';
+import { rowsForForm } from './excel-templates.js';
 
 function sheetName(label, index) {
   return `${String(label).replace(/[\\/?*\[\]:]/g, ' ').slice(0, 25)} ${index + 1}`;
 }
 
-function peopleRows(program, peopleRows, idsKey, textKey) {
-  const ids = program.payload?.[idsKey] || [];
-  const fromIds = (peopleRows || []).filter((r) => ids.includes(r.id));
-  if (fromIds.length) {
-    return fromIds.map((r) => {
-      const p = r.payload || {};
-      return {
-        name: r.title,
-        domain: p.experience_domain || p.roles || '',
-        detail: p.experience || p.teaching_experience || p.development_experience || '',
-        contact_name: p.recommender_name || '',
-        phone: '', // never export personal phone into public artifacts from UI without explicit field
-        relation: p.recommender_relation || '',
-        cv: p.cv_url || '',
-        verified: p.verification_status || p.eligibility || ''
-      };
-    });
+function peopleRows(program, peopleList, idsKey, textKey) {
+  const viaTemplate = rowsForForm(idsKey === 'developer_ids' ? 159 : 160, program, peopleList);
+  if (viaTemplate.length) {
+    return viaTemplate.map((r) => ({
+      ...r,
+      verified: ''
+    }));
   }
   const text = answerText(program.payload?.[textKey]);
   if (!text.trim()) return [];
@@ -34,48 +25,12 @@ function peopleRows(program, peopleRows, idsKey, textKey) {
     phone: '',
     relation: '',
     cv: '',
-    verified: 'טיוטה מטקסט חופשי'
+    verified: ''
   })).filter((r) => r.name);
 }
 
 function syllabusRows(program) {
-  const sessions = program.payload?.syllabus_sessions;
-  if (Array.isArray(sessions) && sessions.length) {
-    return sessions.map((item, i) => ({
-      meeting: item.meeting_label || item.meeting_number || item.meeting || (i + 1),
-      audience: item.age_stage || item.audience || '',
-      topics: item.topic || item.topics || '',
-      content: item.content || '',
-      methods: item.methods || '',
-      skills: item.skills_values || item.skills || '',
-      catalog_ref: item.source
-        ? `${item.source}${item.source_page ? ` | עמוד ${item.source_page}` : ''}${item.catalog_only ? ' · קטלוגי (לא 174 מאושר)' : ''}`
-        : (item.catalog_ref || '')
-    }));
-  }
-  const structured = program.payload?.syllabus_items;
-  if (Array.isArray(structured) && structured.length) {
-    return structured.map((item, i) => ({
-      meeting: item.meeting ?? i + 1,
-      audience: item.audience || '',
-      topics: item.topics || '',
-      content: item.content || '',
-      methods: item.methods || '',
-      skills: item.skills || '',
-      catalog_ref: item.catalog_ref || ''
-    }));
-  }
-  const text = answerText(program.payload?.syllabus);
-  if (!text.trim()) return [];
-  return text.split(/\n+/).filter(Boolean).map((line, i) => ({
-    meeting: i + 1,
-    audience: '',
-    topics: line.trim(),
-    content: '',
-    methods: '',
-    skills: '',
-    catalog_ref: ''
-  }));
+  return rowsForForm(174, program, []);
 }
 
 function stemRows(program) {
@@ -152,21 +107,21 @@ export async function exportOfficialFormPackage(XLSX, program, allRows, { approv
 
   const dev = peopleRows(program, people, 'developer_ids', 'developers');
   const ws159 = XLSX.utils.aoa_to_sheet([
-    ['שם המפתח', 'תחום ניסיון', 'פירוט הניסיון', 'שם איש קשר', 'טלפון', 'מהות הקשר', 'קישור קורות חיים', 'סטטוס אימות'],
-    ...dev.map((r) => [r.name, r.domain, r.detail, r.contact_name, r.phone, r.relation, r.cv, r.verified])
+    ['שם מפתח התוכנית', 'תחום הניסיון', 'פירוט הניסיון הרלוונטי', 'שם איש קשר לקבלת המלצה', 'טלפון איש קשר', 'מהות הקשר', 'צורפו קורות חיים'],
+    ...dev.map((r) => [r.name, r.domain, r.detail, r.contact_name, r.phone, r.relation, r.cv])
   ]);
   XLSX.utils.book_append_sheet(wb, ws159, '159 מפתחים');
 
   const ops = peopleRows(program, people, 'operator_ids', 'operators');
   const ws160 = XLSX.utils.aoa_to_sheet([
-    ['שם המפעיל', 'תחום ניסיון', 'פירוט ניסיון', 'שם ממליץ', 'טלפון', 'מהות הקשר', 'קישור קורות חיים', 'סטטוס אימות'],
-    ...ops.map((r) => [r.name, r.domain, r.detail, r.contact_name, r.phone, r.relation, r.cv, r.verified])
+    ['שם מפעיל התוכנית', 'תחום הניסיון', 'פירוט הניסיון הרלוונטי', 'שם איש קשר לקבלת המלצה', 'טלפון איש קשר', 'מהות הקשר', 'צורפו קורות חיים'],
+    ...ops.map((r) => [r.name, r.domain, r.detail, r.contact_name, r.phone, r.relation, r.cv])
   ]);
   XLSX.utils.book_append_sheet(wb, ws160, '160 מפעילים');
 
   const syl = syllabusRows(program);
   const ws174 = XLSX.utils.aoa_to_sheet([
-    ['מפגש', 'קהל יעד ושכבת גיל', 'נושאי המפגש', 'פירוט התכנים', 'דרכי הפעלה', 'מיומנויות וערכים', 'קישור/מספר בקטלוג'],
+    ['מפגש', 'קהל היעד (כולל שכבות הגיל לתלמידים)', 'נושאי מפגש', 'פירוט תכני המפגש', 'דרכי הפעלה', 'מיומנויות וערכים', 'קישור ומספר פריט בקטלוג החינוכי'],
     ...syl.map((r) => [r.meeting, r.audience, r.topics, r.content, r.methods, r.skills, r.catalog_ref])
   ]);
   XLSX.utils.book_append_sheet(wb, ws174, '174 תוכנית למידה');

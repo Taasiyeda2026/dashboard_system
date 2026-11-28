@@ -76,20 +76,23 @@
             <div class="gt-empty">טרם נוסף מידע.</div>
 
             <div class="gt-panel" style="margin-top:16px">
-              <div class="gt-panel__title">פרטי תוכנית — דוגמת שדות</div>
+              <div class="gt-panel__title">פרטי תוכנית</div>
+              <div class="gt-toolbar">
+                <button type="button" class="gt-btn--primary gt-btn--sm">השלמת פרטים ממאגר הידע</button>
+              </div>
               <div class="gt-grid-2">
                 <div class="gt-field"><label>שם תוכנית</label><input type="text" value="Arduino"></div>
                 <div class="gt-field"><label>תחום מרכזי</label><select><option>בחרו</option><option>לימודי</option></select></div>
                 <div class="gt-field"><label>תקציר התוכנית</label><textarea rows="2" maxlength="1000" data-demo-summary>דוגמה</textarea><small class="gt-count" data-count-limit="1000">&#x2066;3 / 1000&#x2069;</small></div>
                 <div class="gt-field"><label>מטרה מרכזית</label><textarea rows="2" maxlength="750"></textarea><small class="gt-count" data-count-limit="750">&#x2066;0 / 750&#x2069;</small></div>
-                <div class="gt-field"><label>מגזר</label>
-                  <div data-multi="sector">
-                    <label><input type="checkbox">יהודי</label>
-                    <label><input type="checkbox">ערבי</label>
-                    <label><input type="checkbox">דרוזי</label>
-                    <label><input type="checkbox">בדואי</label>
-                  </div>
-                </div>
+              </div>
+              <div class="gt-panel" style="margin-top:10px">
+                <div class="gt-panel__title">שיוכים</div>
+                <table class="gt-table gt-table--assoc"><thead><tr>
+                  <th>תת סל</th><th>שם</th><th>תוקף</th><th>סטטוס הגשה</th>
+                </tr></thead><tbody>
+                  <tr><td>112</td><td>חדשנות ויזמות טכנולוגית</td><td>2027</td><td><span class="gt-badge gt-badge--info">להגיש</span></td></tr>
+                </tbody></table>
               </div>
             </div>
 
@@ -132,21 +135,37 @@
             </div>
 
             <div class="gt-panel">
-              <div class="gt-panel__title">סילבוס מובנה — ביומימיקרי יסודי</div>
-              <div class="gt-toolbar">
-                <label>שכבת גיל <select><option>הכל</option><option selected>יסודי</option></select></label>
-                <button type="button" class="gt-btn--sm gt-btn--primary">הוספת מפגש</button>
-                <button type="button" class="gt-btn--sm">הפקת טופס 174</button>
-                <strong>11 מפגשים</strong>
+              <div class="gt-syl-head">
+                <div class="gt-syl-head__meta">
+                  <strong>יזמות ביומימיקרי (יסודי)</strong>
+                  <span>שכבות גיל: ד׳–ו׳</span>
+                  <span>מפגשים: 11</span>
+                  <span>משך מפגש: 90 דק׳</span>
+                </div>
+                <div class="gt-toolbar gt-toolbar--actions">
+                  <button type="button" class="gt-btn--sm">עריכה</button>
+                  <button type="button" class="gt-btn--sm">ייבוא סילבוס</button>
+                  <button type="button" class="gt-btn--sm">הפקת טופס 174</button>
+                  <button type="button" class="gt-btn--sm">מסמך מקור</button>
+                </div>
               </div>
-              <table class="gt-table gt-table--compact"><thead><tr>
-                <th>#</th><th>נושא</th><th>תיאור</th><th>משך</th>
-              </tr></thead><tbody>
-                <tr><td>1</td><td>ביו-מי?</td><td>היכרות עם תחום הביומימיקרי</td><td>90</td></tr>
-                <tr><td>2</td><td>BIO-WOW</td><td>השראה מהטבע וחדשנות</td><td>90</td></tr>
-                <tr><td>11</td><td>הצגה וסיכום</td><td>הצגת פרויקטים בפני קהל</td><td>90</td></tr>
-              </tbody></table>
-              <p class="gt-header__sub">סילבוס קטלוגי מובנה אינו טופס 174 רשמי ומאושר ללא התאמה לתבנית.</p>
+              <div class="gt-overflow gt-overflow--natural">
+                <table class="gt-table gt-table--syllabus"><thead><tr>
+                  <th>מפגש</th><th>קהל היעד</th><th>נושאי מפגש</th><th class="gt-col--wide">פירוט תכני המפגש</th>
+                  <th>דרכי הפעלה</th><th>מיומנויות וערכים</th><th>קטלוג חינוכי</th>
+                </tr></thead><tbody>
+                  <tr>
+                    <td>1</td><td>יסודי · ד׳–ו׳</td><td>ביו-מי?</td>
+                    <td class="gt-col--wide gt-cell--wrap">היכרות עם תחום הביומימיקרי והשראה מהטבע כבסיס לחדשנות.</td>
+                    <td class="gt-cell--wrap">עבודה קבוצתית</td><td class="gt-cell--wrap">חשיבה יצירתית</td><td>—</td>
+                  </tr>
+                  <tr>
+                    <td>2</td><td>יסודי · ד׳–ו׳</td><td>BIO-WOW</td>
+                    <td class="gt-col--wide gt-cell--wrap">השראה מהטבע וחדשנות יישומית.</td>
+                    <td class="gt-cell--wrap">מפגשים חווייתיים</td><td class="gt-cell--wrap">אוריינות מדעית</td><td>—</td>
+                  </tr>
+                </tbody></table>
+              </div>
             </div>
 
             <div class="gt-panel">

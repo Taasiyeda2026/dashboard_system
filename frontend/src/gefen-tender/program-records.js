@@ -82,6 +82,7 @@ export function normalizeSyllabusSessions(value) {
       meeting_from: meetingFrom,
       meeting_to: meetingTo,
       meeting_label: label,
+      audience: String(s.audience || '').trim(),
       topic: String(s.topic || '').trim(),
       content: String(s.content || '').trim(),
       goals: String(s.goals || '').trim(),
@@ -89,6 +90,8 @@ export function normalizeSyllabusSessions(value) {
       skills_values: String(s.skills_values || '').trim(),
       notes: String(s.notes || '').trim(),
       duration_minutes: Number(s.duration_minutes) || 0,
+      catalog_item_number: String(s.catalog_item_number || '').trim(),
+      catalog_item_url: String(s.catalog_item_url || '').trim(),
       source: String(s.source || '').trim(),
       source_page: Number(s.source_page) || 0,
       source_group_id: String(s.source_group_id || '').trim(),
@@ -106,6 +109,7 @@ export function emptySyllabusSession(ageStage = 'כללי', meetingNumber = 1) {
     meeting_from: meetingNumber,
     meeting_to: meetingNumber,
     meeting_label: String(meetingNumber),
+    audience: '',
     topic: '',
     content: '',
     goals: '',
@@ -113,11 +117,64 @@ export function emptySyllabusSession(ageStage = 'כללי', meetingNumber = 1) {
     skills_values: '',
     notes: '',
     duration_minutes: 90,
+    catalog_item_number: '',
+    catalog_item_url: '',
     source: '',
     source_page: 0,
     source_group_id: '',
     optional: false,
     catalog_only: true
+  };
+}
+
+/** Person experience rows aligned with forms 159/160 (one row per experience). */
+export const RECOMMENDER_RELATIONS = ['לקוח', 'קולגה', 'מנהל'];
+
+export function normalizePersonExperienceRecords(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((r) => r && typeof r === 'object').map((r) => ({
+    id: r.id || uid('pexp'),
+    domain: String(r.domain || '').trim(),
+    detail: String(r.detail || '').trim(),
+    program_id: String(r.program_id || '').trim(),
+    program_title: String(r.program_title || '').trim(),
+    role: String(r.role || '').trim(),
+    contact_name: String(r.contact_name || '').trim(),
+    phone: String(r.phone || '').trim(),
+    relation: String(r.relation || '').trim()
+  }));
+}
+
+export function emptyPersonExperienceRecord() {
+  return {
+    id: uid('pexp'),
+    domain: '',
+    detail: '',
+    program_id: '',
+    program_title: '',
+    role: '',
+    contact_name: '',
+    phone: '',
+    relation: ''
+  };
+}
+
+export function normalizePersonRecommenders(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((r) => r && typeof r === 'object').map((r) => ({
+    id: r.id || uid('prec'),
+    name: String(r.name || r.recommender || '').trim(),
+    phone: String(r.phone || r.contact || '').trim(),
+    relation: String(r.relation || r.role || '').trim()
+  }));
+}
+
+export function emptyPersonRecommender() {
+  return {
+    id: uid('prec'),
+    name: '',
+    phone: '',
+    relation: ''
   };
 }
 

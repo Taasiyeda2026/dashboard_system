@@ -405,30 +405,84 @@
   z-index: 5;
   background: color-mix(in srgb, var(--gt-surface) 92%, transparent);
   backdrop-filter: blur(4px);
-  padding: 6px 0;
-  margin-bottom: 6px;
+  padding: 8px 0;
+  margin: 0 0 12px;
   border-bottom: 1px solid var(--gt-border);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--gt-border) 60%, transparent);
 }
 
-.gt-assoc {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--gt-border);
+.gt-table--assoc td,
+.gt-table--assoc th {
+  padding: 6px 8px;
+  white-space: nowrap;
 }
-.gt-assoc:last-child { border-bottom: 0; }
-.gt-assoc--secondary { opacity: 0.85; }
-.gt-assoc__head {
+.gt-assoc-row td {
+  vertical-align: middle;
+}
+
+.gt-syl-head {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin: 0 0 10px;
+}
+.gt-syl-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--gt-text-2);
+}
+.gt-syl-head__meta strong {
+  color: var(--gt-text);
+  font-size: 16px;
+}
+.gt-toolbar--actions {
   flex-wrap: wrap;
   gap: 6px;
-  align-items: center;
-  margin-bottom: 4px;
 }
-.gt-assoc__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  font-size: 12px;
+.gt-inline-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
   color: var(--gt-text-2);
+}
+.gt-overflow--natural {
+  overflow: visible;
+  max-height: none;
+}
+.gt-table--syllabus {
+  table-layout: fixed;
+  width: 100%;
+}
+.gt-table--syllabus th,
+.gt-table--syllabus td {
+  vertical-align: top;
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+}
+.gt-table--syllabus .gt-col--wide {
+  width: 28%;
+}
+.gt-cell--wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+.gt-table--syllabus textarea {
+  width: 100%;
+  min-height: 64px;
+  max-height: none;
+  resize: vertical;
+  overflow: auto;
+}
+.gt-panel--fill {
+  margin-bottom: 12px;
 }
 
 .gt-details--compact > summary {

@@ -1,4 +1,6 @@
 import { EXCEL_FORMS } from './constants.js';
+import { catalogRefForExport } from './knowledge-fill.js';
+import { normalizePersonExperienceRecords, normalizePersonRecommenders } from './program-records.js';
 
 /** Default empty cell maps — user completes after uploading official templates. */
 export const DEFAULT_TEMPLATE_MAPS = {
@@ -46,6 +48,38 @@ export const DEFAULT_TEMPLATE_MAPS = {
   }
 };
 
+function personFormRows(person, roleHint = '') {
+  const p = person.payload || {};
+  const exps = normalizePersonExperienceRecords(p.person_experience_records);
+  const recs = normalizePersonRecommenders(p.person_recommenders);
+  const primaryRec = recs[0] || {};
+  const cvYesNo = (p.cv_url || (Array.isArray(p.documents) && p.documents.length) || p.cv_attached === true)
+    ? 'כן'
+    : (p.cv_attached === false ? 'לא' : '');
+  if (exps.length) {
+    return exps.map((e) => ({
+      name: person.title,
+      domain: e.domain || p.experience_domain || '',
+      detail: e.detail || '',
+      contact_name: e.contact_name || primaryRec.name || p.recommender_name || '',
+      phone: e.phone || primaryRec.phone || p.recommender_phone || '',
+      relation: e.relation || primaryRec.relation || p.recommender_relation || '',
+      cv: cvYesNo || p.cv_url || '',
+      role: e.role || roleHint
+    }));
+  }
+  return [{
+    name: person.title,
+    domain: p.experience_domain || p.roles || '',
+    detail: p.development_experience || p.teaching_experience || p.experience || '',
+    contact_name: primaryRec.name || p.recommender_name || '',
+    phone: primaryRec.phone || p.recommender_phone || '',
+    relation: primaryRec.relation || p.recommender_relation || '',
+    cv: cvYesNo || p.cv_url || '',
+    role: roleHint
+  }];
+}
+
 export function templateMeta(code, payload = {}) {
   const form = EXCEL_FORMS.find((f) => f.code === Number(code));
   return {
@@ -92,19 +126,12 @@ export function fillTemplateWorkbook(XLSX, templateArrayBuffer, mapping, rows) {
 
 export function rowsForForm(code, program, peopleRows = []) {
   const p = program.payload || {};
+  const grades = String(p.grades || p.details?.grades || '').trim();
   if (Number(code) === 159) {
     const ids = p.developer_ids || [];
     const fromIds = peopleRows.filter((r) => ids.includes(r.id));
     if (fromIds.length) {
-      return fromIds.map((r) => ({
-        name: r.title,
-        domain: r.payload?.experience_domain || r.payload?.roles || '',
-        detail: r.payload?.development_experience || r.payload?.experience || '',
-        contact_name: r.payload?.recommender_name || '',
-        phone: '',
-        relation: r.payload?.recommender_relation || '',
-        cv: r.payload?.cv_url || ''
-      }));
+      return fromIds.flatMap((r) => personFormRows(r, 'מפתח'));
     }
     return String(p.developers || '').split(/\n+/).filter(Boolean).map((name) => ({
       name: name.trim(), domain: '', detail: '', contact_name: '', phone: '', relation: '', cv: ''
@@ -114,15 +141,7 @@ export function rowsForForm(code, program, peopleRows = []) {
     const ids = p.operator_ids || [];
     const fromIds = peopleRows.filter((r) => ids.includes(r.id));
     if (fromIds.length) {
-      return fromIds.map((r) => ({
-        name: r.title,
-        domain: r.payload?.experience_domain || r.payload?.roles || '',
-        detail: r.payload?.teaching_experience || r.payload?.experience || '',
-        contact_name: r.payload?.recommender_name || '',
-        phone: '',
-        relation: r.payload?.recommender_relation || '',
-        cv: r.payload?.cv_url || ''
-      }));
+      return fromIds.flatMap((r) => personFormRows(r, 'מפעיל'));
     }
     return String(p.operators || '').split(/\n+/).filter(Boolean).map((name) => ({
       name: name.trim(), domain: '', detail: '', contact_name: '', phone: '', relation: '', cv: ''
@@ -130,22 +149,25 @@ export function rowsForForm(code, program, peopleRows = []) {
   }
   if (Number(code) === 174) {
     if (Array.isArray(p.syllabus_sessions) && p.syllabus_sessions.length) {
-      return p.syllabus_sessions.map((item, i) => ({
-        meeting: item.meeting_label || item.meeting_number || item.meeting || (i + 1),
-        audience: item.age_stage || item.audience || '',
-        topics: item.topic || item.topics || '',
-        content: item.content || '',
-        methods: item.methods || '',
-        skills: item.skills_values || item.skills || '',
-        catalog_ref: item.source
-          ? `${item.source}${item.source_page ? ` | עמוד ${item.source_page}` : ''}${item.catalog_only ? ' · קטלוגי (לא 174 מאושר)' : ''}`
-          : (item.catalog_ref || '')
-      }));
+      return p.syllabus_sessions.map((item, i) => {
+        const stage = item.age_stage && item.age_stage !== 'כללי' ? item.age_stage : '';
+        const audience = String(item.audience || '').trim()
+          || [stage, grades].filter(Boolean).join(' · ');
+        return {
+          meeting: item.meeting_label || item.meeting_number || item.meeting || (i + 1),
+          audience,
+          topics: item.topic || item.topics || '',
+          content: item.content || '',
+          methods: item.methods || '',
+          skills: item.skills_values || item.skills || '',
+          catalog_ref: catalogRefForExport(item) || String(item.catalog_ref || '').trim()
+        };
+      });
     }
     if (Array.isArray(p.syllabus_items) && p.syllabus_items.length) {
       return p.syllabus_items.map((item, i) => ({
         meeting: item.meeting ?? i + 1,
-        audience: item.audience || '',
+        audience: item.audience || grades || '',
         topics: item.topics || '',
         content: item.content || '',
         methods: item.methods || '',
@@ -155,7 +177,7 @@ export function rowsForForm(code, program, peopleRows = []) {
     }
     return String(p.syllabus || '').split(/\n+/).filter(Boolean).map((line, i) => ({
       meeting: i + 1,
-      audience: '',
+      audience: grades || '',
       topics: line.trim(),
       content: '',
       methods: '',
