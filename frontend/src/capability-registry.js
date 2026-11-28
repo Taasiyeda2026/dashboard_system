@@ -61,6 +61,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'finance.transactions', parent: 'finance', label: 'חשבונות עסקה', type: 'tool', permission: 'manage_finance_transactions' },
   { id: 'reports', label: 'דוחות אישיים', type: 'page', permission: 'can_access_personal_reports', route: 'personal-reports' },
   { id: 'reports.manage', parent: 'reports', label: 'ניהול דוחות עובדים', type: 'action', permission: 'personal_reports_manager' },
+  { id: 'posters', label: 'ניהול כלל הפוסטרים', type: 'action', permission: 'manage_all_posters' },
   { id: 'israa', label: 'ניהול איסראא', type: 'page', permission: 'view_israa_management', route: 'israa-management' },
 
   { id: 'admin.home', label: 'מרכז הניהול', type: 'workspace', adminOnly: true, route: 'admin-home' },

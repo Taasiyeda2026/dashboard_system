@@ -28,6 +28,7 @@ const KEY_PERM_FLAGS = [
   'view_proposals_agreements',
   'manage_proposals_agreements',
   'view_israa_management',
+  'manage_all_posters',
   'view_operations_management',
   'view_employee_files',
   'finance_access',
@@ -103,7 +104,7 @@ function sortedPermissionEditorKeys(row) {
       k === 'default_view' ||
       k.startsWith('view_') ||
       k.startsWith('can_') ||
-      k === 'finance_access'
+      k === 'finance_access' || k === 'manage_all_posters'
     );
   });
   const rank = (k) => {
@@ -120,7 +121,7 @@ function sortedPermissionEditorKeys(row) {
 }
 
 function buildPermFlagGrid(row, keys) {
-  const allFlags = keys.filter((k) => k.startsWith('view_') || k.startsWith('can_'));
+  const allFlags = keys.filter((k) => k.startsWith('view_') || k.startsWith('can_') || k === 'manage_all_posters');
   if (allFlags.length === 0) return '';
 
   const chips = allFlags.map((k) => {
@@ -205,12 +206,12 @@ function buildEntryCodeResetSectionHtml(row) {
 
 function buildEditDrawerHtml(row, { showEntryCodeReset = false } = {}) {
   // Ensure new key permission flags are always visible in the form even if not yet stored
-  row = { view_proposals: 'no', view_israa_management: 'no', ...row };
+  row = { view_proposals: 'no', view_israa_management: 'no', manage_all_posters: 'no', ...row };
   const uid = escapeHtml(row.user_id);
   const keys = sortedPermissionEditorKeys(row);
 
   const textFields = keys
-    .filter((k) => !k.startsWith('view_') && !k.startsWith('can_'))
+    .filter((k) => !k.startsWith('view_') && !k.startsWith('can_') && k !== 'manage_all_posters')
     .map((k) => {
       const val = escapeHtml(String(row[k] ?? ''));
       const fieldAttr = `data-perm-field="${escapeHtml(k)}" data-user-id="${uid}"`;
@@ -222,7 +223,7 @@ function buildEditDrawerHtml(row, { showEntryCodeReset = false } = {}) {
     .join('');
 
   const viewFlags = keys.filter((k) => k.startsWith('view_'));
-  const canFlags = keys.filter((k) => k.startsWith('can_'));
+  const canFlags = keys.filter((k) => k.startsWith('can_') || k === 'manage_all_posters');
 
   function renderBoolGroup(flagKeys, groupTitle) {
     if (flagKeys.length === 0) return '';
@@ -312,7 +313,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
 }
 
 function buildPermissionsDetailsHtml(row) {
-  const keys = sortedPermissionEditorKeys(row).filter((k) => k.startsWith('view_') || k.startsWith('can_'));
+  const keys = sortedPermissionEditorKeys(row).filter((k) => k.startsWith('view_') || k.startsWith('can_') || k === 'manage_all_posters');
   const groups = [
     { label: 'לוח בקרה', keys: ['view_admin'] },
     { label: 'פעילויות', keys: ['view_activities', 'can_add_activity', 'can_edit_direct', 'can_request_edit', 'can_request_edit_2', 'can_request_create_activity', 'can_review_requests', 'can_review_requests_2'] },
@@ -323,7 +324,7 @@ function buildPermissionsDetailsHtml(row) {
     { label: 'אנשי קשר', keys: ['view_contacts'] },
     { label: 'אישורים', keys: ['view_approvals'] },
     { label: 'הרשאות', keys: ['view_permissions'] },
-    { label: 'ניהול איסראא', keys: ['view_israa_management'] },
+    { label: 'ניהול איסראא', keys: ['view_israa_management', 'manage_all_posters'] },
     { label: 'ניהול משתמשים', keys: ['view_user_management'] },
     { label: 'נתונים אישיים', keys: ['view_profile'] }
   ];

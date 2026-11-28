@@ -722,3 +722,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-gefen-compact-issuance-layout-
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-reset-active-permissions-v2-20261126`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-spin-off-poster-sso-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-poster-management-20261128-v1`;
