@@ -6,7 +6,7 @@ export function posterNavigationPlacement(user = {}) {
   if (user?.is_active === false) return null;
   const role = String(user?.role || '').trim();
   if (role === 'admin') return 'admin-management';
-  if (canManageAllPosters(user)) return 'israa-management';
+  if (canManageAllPosters(user)) return 'manager-sidebar';
   if (role === 'activities_manager') return 'manager-sidebar';
   return null;
 }
