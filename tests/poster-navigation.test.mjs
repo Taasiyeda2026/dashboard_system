@@ -5,6 +5,7 @@ import { POSTER_MANAGEMENT_URL, posterNavigationPlacement } from '../frontend/sr
 
 test('poster navigation is restricted to admin, activities_manager and explicit poster capability', () => {
   assert.equal(posterNavigationPlacement({ role: 'admin' }), 'admin-management');
+  assert.equal(posterNavigationPlacement({ role: 'admin', permissions: {manage_all_posters:'yes', view_israa_management:'yes'} }), 'admin-management');
   assert.equal(posterNavigationPlacement({ role: 'activities_manager' }), 'manager-sidebar');
   for (const role of ['instructor', 'manager', 'operations_manager', 'business_development_manager', 'finance', '']) {
     assert.equal(posterNavigationPlacement({ role }), null);
