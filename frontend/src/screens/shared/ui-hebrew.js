@@ -172,6 +172,7 @@ const PERMISSION_FIELD_LABELS = {
   view_final_approvals: 'צפייה — אישורים סופיים',
   view_contacts: 'צפייה — אנשי קשר (מקור ישן)',
   view_proposals: 'צפייה — הצעות מחיר',
+  manage_all_posters: 'ניהול — כלל הפוסטרים',
   view_israa_management: 'צפייה — ניהול איסראא',
   can_request_edit: 'יכול לבקש עריכה',
   can_request_edit_2: 'יכול לבקש עריכה 2',

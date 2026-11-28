@@ -23,3 +23,20 @@ test('dashboard navigation uses distinct placements and rechecks role on click',
   assert.ok(main.includes('data-poster-manager-nav="true"'));
   assert.ok(admin.includes("title: 'פוסטרים'"));
 });
+
+ test('explicit poster capability grants only poster placement and can be revoked', () => {
+  const user = {role:'business_development_manager', permissions:{manage_all_posters:'yes'}};
+  assert.equal(posterNavigationPlacement(user), 'israa-management');
+  assert.equal(posterNavigationPlacement({...user, is_active:false}), null);
+  assert.equal(posterNavigationPlacement({...user, permissions:{manage_all_posters:'no'}}), null);
+  assert.equal(posterNavigationPlacement({...user, permissions:{manage_all_posters:false}}), null);
+  const screen = readFileSync(new URL('../frontend/src/screens/israa-management.js', import.meta.url), 'utf8');
+  assert.ok(screen.includes('data-israa-posters'));
+  assert.ok(screen.includes('canManageAllPosters(state.user)'));
+ });
+
+ test('poster capability is registered as a boolean admin editor permission', () => {
+  const source = readFileSync(new URL('../frontend/src/screens/permissions.js', import.meta.url),'utf8');
+  assert.ok(source.includes("manage_all_posters: 'no'"));
+  assert.ok(source.includes("k.startsWith('can_') || k === 'manage_all_posters'"));
+ });

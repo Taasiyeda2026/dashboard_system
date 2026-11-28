@@ -80,3 +80,9 @@ export function activityPermissions(user = {}) {
     canReviewRequests: canReviewRequests(user)
   };
 }
+
+// A poster-only capability; it does not grant dashboard administration.
+export function canManageAllPosters(user = {}) {
+  return user?.is_active !== false && (String(user?.role || '').trim() === 'admin'
+    || permissionFlagYes(user?.permissions?.manage_all_posters ?? user?.manage_all_posters));
+}
