@@ -46,8 +46,14 @@ import {
   normalizeRecommendationRecords, emptyRecommendationRecord, RECOMMENDATION_STATUSES,
   SYLLABUS_AGE_STAGES, normalizeSyllabusSessions, emptySyllabusSession, reorderSyllabusSessions,
   historicalAsKnowledgeItems, inferAgeStageFromGrades,
-  experienceFilled, recommendationsFilled, syllabusFilled, documentsFilled
+  experienceFilled, recommendationsFilled, syllabusFilled, documentsFilled,
+  normalizePersonExperienceRecords, emptyPersonExperienceRecord,
+  normalizePersonRecommenders, emptyPersonRecommender, RECOMMENDER_RELATIONS
 } from '../gefen-tender/program-records.js';
+import {
+  proposeProgramDetailFills, applyDetailProposals,
+  countSyllabusMeetings, uniformSessionDuration, catalogRefForExport
+} from '../gefen-tender/knowledge-fill.js';
 
 const SP_ROOT = 'ניהול/מכרז גפן 2027';
 
@@ -242,9 +248,12 @@ export async function mountGefenTender(root) {
   let docsListing = null;
   let docsFolderPath = '';
   let syllabusAge = '';
+  let syllabusEditMode = false;
+  let syllabusSourceOpen = false;
   let contextPreview = null;
   let peoplePickerQ = '';
   let knowledgeSourceFilter = 'all';
+  let knowledgeFillProposals = null;
 
   const pendingLeave = () => {
     if (!dirty) return true;
@@ -438,7 +447,8 @@ export async function mountGefenTender(root) {
       });
       p.recommendation_records = normalizeRecommendationRecords([...byId.values()]);
     }
-    if (root.querySelector('[data-syl-field]')) {
+    // Collect syllabus DOM only in edit mode — view mode omits cell values to avoid wiping content.
+    if (syllabusEditMode && root.querySelector('[data-syl-field]')) {
       const byId = new Map();
       root.querySelectorAll('[data-syl-id][data-syl-field]').forEach((el) => {
         const id = el.dataset.sylId;
@@ -450,6 +460,24 @@ export async function mountGefenTender(root) {
       const editedIds = new Set(edited.map((s) => s.id));
       const kept = normalizeSyllabusSessions(p.syllabus_sessions).filter((s) => !editedIds.has(s.id));
       p.syllabus_sessions = normalizeSyllabusSessions([...kept, ...edited]);
+    }
+    if (root.querySelector('[data-pexp-field]')) {
+      const byId = new Map();
+      root.querySelectorAll('[data-pexp-id][data-pexp-field]').forEach((el) => {
+        const id = el.dataset.pexpId;
+        if (!byId.has(id)) byId.set(id, { id });
+        byId.get(id)[el.dataset.pexpField] = el.value;
+      });
+      p.person_experience_records = normalizePersonExperienceRecords([...byId.values()]);
+    }
+    if (root.querySelector('[data-prec-field]')) {
+      const byId = new Map();
+      root.querySelectorAll('[data-prec-id][data-prec-field]').forEach((el) => {
+        const id = el.dataset.precId;
+        if (!byId.has(id)) byId.set(id, { id });
+        byId.get(id)[el.dataset.precField] = el.value;
+      });
+      p.person_recommenders = normalizePersonRecommenders([...byId.values()]);
     }
     if (RECOMMENDATION_FOLDER_BY_PROGRAM[row.id] && !p.recommendations_folder_url) {
       p.recommendations_folder_url = recommendationsFolderUrl(row.id, row.title);
@@ -772,35 +800,48 @@ export async function mountGefenTender(root) {
     ];
     let body = '';
     if (programSub === 'details') {
-      const researchVal = p.details?.research;
-      const researchHint = researchVal === 'כן'
-        ? '<p class="gt-header__sub">מסמך מחקר אקדמי מסומן כנדרש — יש לצרף מסמך בלשונית מסמכים אם קיים.</p>'
-        : '<p class="gt-header__sub">מסמך מחקר אקדמי: בורר ״כן/לא״ לפי טופס ההגשה. אין להמציא דרישת צירוף אם לא סומן.</p>';
-      body = `<div class="gt-grid-2 gt-grid-2--dense">${PROGRAM_DETAIL_FIELDS.map(([k, l, lim, choices, multi]) =>
+      const fillPanel = knowledgeFillProposals?.length
+        ? `<div class="gt-panel gt-panel--fill" data-knowledge-fill-panel>
+            <div class="gt-panel__title">הצעות ממאגר הידע</div>
+            <p class="gt-header__sub">מוצגות רק הצעות לשדות ריקים, עם מקור. אין דריסה אוטומטית.</p>
+            <div class="gt-overflow"><table class="gt-table"><thead><tr>
+              <th></th><th>שדה</th><th>הצעה</th><th>מקור</th>
+            </tr></thead><tbody>
+              ${knowledgeFillProposals.map((pr, i) => `<tr>
+                <td><input type="checkbox" data-fill-pick="${esc(pr.field)}" checked></td>
+                <td>${esc(pr.label)}</td>
+                <td>${esc(Array.isArray(pr.value) ? pr.value.join(', ') : String(pr.value).slice(0, 180))}</td>
+                <td>${esc(pr.source || '—')}</td>
+              </tr>`).join('')}
+            </tbody></table></div>
+            <div class="gt-toolbar">
+              <button type="button" class="gt-btn--sm gt-btn--primary" data-fill-apply-selected>אישור מסומנים</button>
+              <button type="button" class="gt-btn--sm gt-btn--primary" data-fill-apply-all>אישור מרוכז</button>
+              <button type="button" class="gt-btn--sm" data-fill-cancel>ביטול</button>
+            </div>
+          </div>`
+        : '';
+      body = `<div class="gt-toolbar">
+          <button type="button" class="gt-btn--primary gt-btn--sm" data-knowledge-fill>${icon('check')}השלמת פרטים ממאגר הידע</button>
+        </div>
+        ${fillPanel}
+        <div class="gt-grid-2 gt-grid-2--dense">${PROGRAM_DETAIL_FIELDS.map(([k, l, lim, choices, multi]) =>
           field(k, l, p.details?.[k] ?? (k === 'name' ? row.title : ''), lim, choices, multi)
         ).join('')}</div>
-        ${researchHint}
         <div class="gt-panel"><div class="gt-panel__title">שיוכים</div>
+          <div class="gt-overflow"><table class="gt-table gt-table--assoc"><thead><tr>
+            <th>תת סל</th><th>שם</th><th>תוקף</th><th>סטטוס הגשה</th>
+          </tr></thead><tbody>
           ${(p.associations || []).map((raw) => {
             const assoc = ensureAssociationQuestions(raw);
-            const is112 = Number(assoc.code) === BASKET_112;
-            const isStem = Number(assoc.code) === 706;
-            return `<div class="gt-assoc${isStem ? ' gt-assoc--secondary' : ''}">
-              <div class="gt-assoc__head">
-                <strong>${assoc.code} – ${esc(BASKETS[assoc.code] || '')}</strong>
-                ${isStem ? statusBadge('מחוץ לתהליך 112 הנוכחי', 'muted') : ''}
-              </div>
-              <div class="gt-assoc__meta">
-                <span>תוקף: ${esc(assoc.validity || '—')}</span>
-                <span>מצב הגשה: ${statusBadge(assoc.status || '—', is112 && assoc.status === 'בתוקף' ? 'ok' : 'info')}</span>
-                <span>אימות מיפוי: ${assoc.mapping_verified === true ? statusBadge('אומת', 'ok') : statusBadge('טרם אומת', 'muted')}</span>
-                ${is112 && assoc.questions?.length ? `<span>${assoc.questions.length} שאלות</span>` : ''}
-              </div>
-              ${assoc.mapping_note ? `<details class="gt-details gt-details--compact"><summary>מידע משלים על מקור המיפוי</summary>
-                <div class="gt-details__body"><p class="gt-header__sub">${esc(assoc.mapping_note)}</p></div>
-              </details>` : ''}
-            </div>`;
-          }).join('') || '<div class="gt-empty">אין שיוכים</div>'}
+            return `<tr class="gt-assoc-row">
+              <td>${esc(assoc.code)}</td>
+              <td>${esc(BASKETS[assoc.code] || '')}</td>
+              <td>${esc(assoc.validity || '—')}</td>
+              <td>${statusBadge(assoc.status || '—', Number(assoc.code) === BASKET_112 && assoc.status === 'בתוקף' ? 'ok' : 'info')}</td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="4"><div class="gt-empty">אין שיוכים</div></td></tr>'}
+          </tbody></table></div>
         </div>`;
     } else if (programSub === 'knowledge') {
       body = knowledgePanel(p);
@@ -901,53 +942,95 @@ export async function mountGefenTender(root) {
       const allSessions = normalizeSyllabusSessions(p.syllabus_sessions);
       const inferred = inferAgeStageFromGrades(p.grades || p.details?.grades || '') || '';
       const sessions = allSessions.filter((s) => !syllabusAge || s.age_stage === syllabusAge);
-      const form174 = EXCEL_FORMS.find((f) => f.code === 174);
-      body = `<div class="gt-toolbar">
-        <label>שכבת גיל <select data-syllabus-age>
-          <option value=""${!syllabusAge ? ' selected' : ''}>הכל</option>
-          ${opts(SYLLABUS_AGE_STAGES, syllabusAge)}
-        </select></label>
-        <button type="button" class="gt-btn--sm gt-btn--primary" data-syl-add>הוספת מפגש</button>
-        <button type="button" class="gt-btn--sm" data-export-form-global="174" title="הפקת טיוטת טופס 174 מהתבנית הרשמית">${icon('download')}הפקת טופס 174</button>
-        <button type="button" class="gt-btn--sm" data-fill-template="174" title="מילוי תבנית לפי נתוני התוכנית">${icon('edit')}מילוי תבנית 174</button>
-        <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-template-file="174" hidden>
-        <button type="button" class="gt-btn--sm" data-upload-template="174">${icon('upload')}ייבוא סילבוס Excel</button>
-        <strong>${sessions.length} מפגשים${allSessions.length !== sessions.length ? ` (מתוך ${allSessions.length})` : ''}</strong>
-        ${inferred ? `<span class="gt-badge gt-badge--info">שכבה מומלצת: ${esc(inferred)}</span>` : ''}
+      const grades = p.grades || p.details?.grades || '';
+      const meetingCount = countSyllabusMeetings(sessions.length ? sessions : allSessions);
+      const uniformDur = uniformSessionDuration(sessions.length ? sessions : allSessions);
+      const editing = syllabusEditMode;
+      const audienceOf = (s) => {
+        const own = String(s.audience || '').trim();
+        if (own) return own;
+        const stage = s.age_stage && s.age_stage !== 'כללי' ? s.age_stage : '';
+        return [stage, grades].filter(Boolean).join(' · ') || '—';
+      };
+      const catalogOf = (s) => catalogRefForExport(s) || '—';
+      body = `<div class="gt-syl-head">
+        <div class="gt-syl-head__meta">
+          <strong>${esc(row.title)}</strong>
+          <span>שכבות גיל: ${esc(grades || '—')}</span>
+          <span>מפגשים: ${meetingCount}</span>
+          ${uniformDur ? `<span>משך מפגש: ${uniformDur} דק׳</span>` : ''}
+        </div>
+        <div class="gt-toolbar gt-toolbar--actions">
+          <button type="button" class="gt-btn--sm${editing ? ' gt-btn--primary' : ''}" data-syl-toggle-edit>${icon('edit')}${editing ? 'סיום עריכה' : 'עריכה'}</button>
+          <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-template-file="174" hidden>
+          <button type="button" class="gt-btn--sm" data-upload-template="174">${icon('upload')}ייבוא סילבוס</button>
+          <button type="button" class="gt-btn--sm" data-export-form-global="174">${icon('download')}הפקת טופס 174</button>
+          <button type="button" class="gt-btn--sm" data-fill-template="174" hidden aria-hidden="true"></button>
+          <button type="button" class="gt-btn--sm" data-syl-source-toggle>${icon('folder')}מסמך מקור</button>
+          <label class="gt-inline-label">שכבה <select data-syllabus-age>
+            <option value=""${!syllabusAge ? ' selected' : ''}>הכל</option>
+            ${opts(SYLLABUS_AGE_STAGES, syllabusAge)}
+          </select></label>
+          ${editing ? '<button type="button" class="gt-btn--sm gt-btn--primary" data-syl-add>הוספת מפגש</button>' : ''}
+        </div>
       </div>
-      <p class="gt-header__sub">סילבוס קטלוגי מובנה אינו טופס 174 רשמי ומאושר ללא התאמה לתבנית הרשמית${form174 ? ` (${esc(form174.file)})` : ''}.</p>
-      <div class="gt-overflow gt-overflow--sticky" data-syl-table><table class="gt-table gt-table--compact"><thead><tr>
-        <th>#</th><th>נושא</th><th>תיאור</th><th>משך</th><th>מקור</th><th></th>
-      </tr></thead><tbody>${sessions.map((s, i) => `<tr>
-        <td>
-          <input data-syl-id="${esc(s.id)}" data-syl-field="meeting_label" value="${esc(s.meeting_label)}" style="width:4.5rem" title="תווית מפגש / טווח">
+      ${syllabusSourceOpen ? `<div class="gt-panel"><div class="gt-panel__title">מסמך מקור</div>
+        ${renderDocumentUploader({
+          docs: p.syllabus_documents, area: 'syllabus', scopeKey: `program:${row.id}:syllabus_documents`
+        })}
+      </div>` : ''}
+      <div class="gt-overflow gt-overflow--natural" data-syl-table><table class="gt-table gt-table--syllabus"><thead><tr>
+        <th>מפגש</th><th>קהל היעד</th><th>נושאי מפגש</th><th class="gt-col--wide">פירוט תכני המפגש</th>
+        <th>דרכי הפעלה</th><th>מיומנויות וערכים</th><th>קטלוג חינוכי</th>
+        ${editing ? '<th></th>' : ''}
+      </tr></thead><tbody>${sessions.map((s, i) => {
+        const hidden = `
           <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_number" value="${esc(s.meeting_number)}">
           <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_from" value="${esc(s.meeting_from)}">
           <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="meeting_to" value="${esc(s.meeting_to)}">
           <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="age_stage" value="${esc(s.age_stage || inferred || 'כללי')}">
           <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="source_group_id" value="${esc(s.source_group_id)}">
-          ${s.optional ? statusBadge('אופציונלי', 'muted') : ''}
-        </td>
-        <td><input data-syl-id="${esc(s.id)}" data-syl-field="topic" value="${esc(s.topic)}"></td>
-        <td><textarea rows="2" data-syl-id="${esc(s.id)}" data-syl-field="content">${esc(s.content)}</textarea></td>
-        <td><input type="number" min="0" style="width:4rem" data-syl-id="${esc(s.id)}" data-syl-field="duration_minutes" value="${esc(s.duration_minutes || 90)}"></td>
-        <td>
-          <input data-syl-id="${esc(s.id)}" data-syl-field="source" value="${esc(s.source)}" placeholder="מקור">
-          <input type="number" min="0" style="width:3.5rem" data-syl-id="${esc(s.id)}" data-syl-field="source_page" value="${esc(s.source_page || '')}" placeholder="עמוד">
-        </td>
-        <td>
-          <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="up" ${i === 0 ? 'disabled' : ''}>↑</button>
-          <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="down" ${i === sessions.length - 1 ? 'disabled' : ''}>↓</button>
-          <button type="button" class="gt-btn--sm" data-syl-remove="${esc(s.id)}">הסרה</button>
-        </td>
-      </tr>`).join('') || '<tr><td colspan="6"><div class="gt-empty">טרם נוספו מפגשים לשכבה זו.</div></td></tr>'}
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="source" value="${esc(s.source)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="source_page" value="${esc(s.source_page || 0)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="duration_minutes" value="${esc(s.duration_minutes || 90)}">
+          <input type="hidden" data-syl-id="${esc(s.id)}" data-syl-field="optional" value="${s.optional ? '1' : ''}">`;
+        if (!editing) {
+          return `<tr>
+            <td>${esc(s.meeting_label)}${s.optional ? ` ${statusBadge('אופציונלי', 'muted')}` : ''}${hidden}</td>
+            <td>${esc(audienceOf(s))}</td>
+            <td>${esc(s.topic || '—')}</td>
+            <td class="gt-col--wide gt-cell--wrap">${esc(s.content || '—')}</td>
+            <td class="gt-cell--wrap">${esc(s.methods || '—')}</td>
+            <td class="gt-cell--wrap">${esc(s.skills_values || '—')}</td>
+            <td class="gt-cell--wrap">${esc(catalogOf(s))}</td>
+          </tr>`;
+        }
+        return `<tr>
+          <td>
+            <input data-syl-id="${esc(s.id)}" data-syl-field="meeting_label" value="${esc(s.meeting_label)}" style="width:4.5rem">
+            ${hidden}
+            ${s.optional ? statusBadge('אופציונלי', 'muted') : ''}
+          </td>
+          <td><input data-syl-id="${esc(s.id)}" data-syl-field="audience" value="${esc(s.audience || (audienceOf(s) === '—' ? '' : audienceOf(s)))}"></td>
+          <td><input data-syl-id="${esc(s.id)}" data-syl-field="topic" value="${esc(s.topic)}"></td>
+          <td class="gt-col--wide"><textarea rows="3" data-syl-id="${esc(s.id)}" data-syl-field="content">${esc(s.content)}</textarea></td>
+          <td><textarea rows="2" data-syl-id="${esc(s.id)}" data-syl-field="methods">${esc(s.methods)}</textarea></td>
+          <td><textarea rows="2" data-syl-id="${esc(s.id)}" data-syl-field="skills_values">${esc(s.skills_values)}</textarea></td>
+          <td>
+            <input data-syl-id="${esc(s.id)}" data-syl-field="catalog_item_number" value="${esc(s.catalog_item_number)}" placeholder="מספר פריט">
+            <input data-syl-id="${esc(s.id)}" data-syl-field="catalog_item_url" value="${esc(s.catalog_item_url)}" placeholder="קישור">
+          </td>
+          <td>
+            <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="up" ${i === 0 ? 'disabled' : ''}>↑</button>
+            <button type="button" class="gt-btn--sm" data-syl-move="${esc(s.id)}" data-dir="down" ${i === sessions.length - 1 ? 'disabled' : ''}>↓</button>
+            <button type="button" class="gt-btn--sm" data-syl-remove="${esc(s.id)}">הסרה</button>
+          </td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="${editing ? 8 : 7}"><div class="gt-empty">טרם נוספו מפגשים.</div></td></tr>`}
       </tbody></table></div>
-      <div class="gt-field"><label>מסמך מקור לסילבוס</label>${renderDocumentUploader({
-        docs: p.syllabus_documents, area: 'syllabus', scopeKey: `program:${row.id}:syllabus_documents`
-      })}</div>
-      <details class="gt-details"><summary>הערות נוספות</summary>
+      ${(p.syllabus || editing) ? `<details class="gt-details"${editing && p.syllabus ? ' open' : ''}><summary>הערות נוספות</summary>
         <div class="gt-details__body">${field('syllabus', 'הערות נוספות', p.syllabus || '')}</div>
-      </details>`;
+      </details>` : ''}`;
     } else {
       const recUrl = p.recommendations_folder_url || recommendationsFolderUrl(row.id, row.title);
       body = field('drive_folder_url', 'תיקיית Google Drive', p.drive_folder_url || '')
@@ -995,35 +1078,91 @@ export async function mountGefenTender(root) {
     const row = get();
     if (row && row.kind === 'operator') {
       const p = row.payload || {};
+      const pexps = normalizePersonExperienceRecords(p.person_experience_records);
+      const precs = normalizePersonRecommenders(p.person_recommenders);
       return `<div class="gt-toolbar">
         <button type="button" data-list-back>${icon('chevR')}חזרה</button>
         <strong style="font-size:18px">${esc(row.title)}</strong>
         <button type="button" class="gt-btn--primary" data-save-operator>${icon('save')}שמירה</button>
       </div>
-      <div class="gt-subnav">
-        <span class="gt-badge gt-badge--muted">פרטים כלליים</span>
+      <div class="gt-panel"><div class="gt-panel__title">פרטים כלליים</div>
+        <div class="gt-grid-2">
+          ${field('roles', 'תפקיד / תפקידים', p.roles || '')}
+          ${field('cv_url', 'קישור לקורות חיים', p.cv_url || '')}
+          ${field('cv_attached', 'צורפו קורות חיים', p.cv_attached === true ? 'כן' : (p.cv_attached === false ? 'לא' : ''), 0, ['כן', 'לא'])}
+          ${field('eligibility', 'התאמה לתנאי סף 112', p.eligibility || '')}
+        </div>
       </div>
-      <div class="gt-grid-2">
-        ${field('roles', 'תפקיד / תפקידים', p.roles || '')}
-        ${field('education', 'השכלה', p.education || '')}
-        ${field('degrees', 'תארים', p.degrees || '')}
-        ${field('training', 'הכשרות', p.training || '')}
-        ${field('training_hours', 'שעות הכשרה', p.training_hours ?? '')}
-        ${field('experience', 'ניסיון', p.experience || '')}
-        ${field('teaching_experience', 'ניסיון הוראה', p.teaching_experience || '')}
-        ${field('development_experience', 'ניסיון פיתוח', p.development_experience || '')}
-        ${field('recommenders', 'ממליצים', p.recommenders || '')}
-        ${field('cv_url', 'קישור לקורות חיים', p.cv_url || '')}
-        ${field('eligibility', 'התאמה לתנאי סף (תיעוד)', p.eligibility || '')}
-        ${field('verification_status', 'סטטוס בדיקה', p.verification_status || '', 0, ['טרם נבדק', 'בתהליך', 'נבדק', 'חסרות אסמכתאות'])}
-        ${field('verified_sources', 'מקורות אימות', p.verified_sources || '')}
+      <div class="gt-panel"><div class="gt-panel__title">השכלה</div>
+        <div class="gt-grid-2">
+          ${field('education', 'השכלה', p.education || '')}
+          ${field('degrees', 'תארים', p.degrees || '')}
+        </div>
       </div>
-      <div class="gt-field"><label>מסמכים ואסמכתאות</label>${renderDocumentUploader({
-        docs: normalizeDocuments(p.documents),
-        area: 'operator',
-        scopeKey: `operator:${row.id}`
-      })}</div>
-      <p class="gt-header__sub">חוסר במידע אינו מסומן ככישלון או כאי־התאמה לתנאי הסף.</p>`;
+      <div class="gt-panel"><div class="gt-panel__title">הכשרות</div>
+        <div class="gt-grid-2">
+          ${field('training', 'הכשרות', p.training || '')}
+          ${field('training_hours', 'שעות הכשרה', p.training_hours ?? '')}
+        </div>
+      </div>
+      <div class="gt-panel"><div class="gt-panel__title">ניסיון מקצועי (טפסים 159/160)</div>
+        <div class="gt-toolbar"><button type="button" class="gt-btn--sm gt-btn--primary" data-pexp-add>הוספת רשומת ניסיון</button></div>
+        <div class="gt-overflow"><table class="gt-table"><thead><tr>
+          <th>תחום ניסיון</th><th>פירוט</th><th>תוכנית</th><th>תפקיד</th><th>איש קשר</th><th>טלפון</th><th>מהות הקשר</th><th></th>
+        </tr></thead><tbody>${pexps.map((r) => `<tr>
+          <td><input data-pexp-id="${esc(r.id)}" data-pexp-field="domain" value="${esc(r.domain)}"></td>
+          <td><textarea rows="2" data-pexp-id="${esc(r.id)}" data-pexp-field="detail">${esc(r.detail)}</textarea></td>
+          <td>
+            <select data-pexp-id="${esc(r.id)}" data-pexp-field="program_id">
+              <option value="">—</option>
+              ${rows.filter((pr) => pr.kind === 'program').map((pr) =>
+                `<option value="${esc(pr.id)}"${pr.id === r.program_id ? ' selected' : ''}>${esc(pr.title)}</option>`).join('')}
+            </select>
+          </td>
+          <td><select data-pexp-id="${esc(r.id)}" data-pexp-field="role">
+            <option value="">—</option>
+            ${opts(['מפתח', 'מפעיל'], r.role)}
+          </select></td>
+          <td><input data-pexp-id="${esc(r.id)}" data-pexp-field="contact_name" value="${esc(r.contact_name)}"></td>
+          <td><input data-pexp-id="${esc(r.id)}" data-pexp-field="phone" value="${esc(r.phone)}"></td>
+          <td><select data-pexp-id="${esc(r.id)}" data-pexp-field="relation">
+            <option value="">—</option>
+            ${opts(RECOMMENDER_RELATIONS, r.relation)}
+          </select></td>
+          <td><button type="button" class="gt-btn--sm" data-pexp-remove="${esc(r.id)}">הסרה</button></td>
+        </tr>`).join('') || '<tr><td colspan="8"><div class="gt-empty">טרם הוזן ניסיון. המידע יתווסף בהמשך.</div></td></tr>'}
+        </tbody></table></div>
+        <details class="gt-details"><summary>טקסט ישן (משלים)</summary>
+          <div class="gt-details__body gt-grid-2">
+            ${field('experience', 'ניסיון', p.experience || '')}
+            ${field('teaching_experience', 'ניסיון הוראה', p.teaching_experience || '')}
+            ${field('development_experience', 'ניסיון פיתוח', p.development_experience || '')}
+            ${field('experience_domain', 'תחום ניסיון (כללי)', p.experience_domain || '')}
+          </div>
+        </details>
+      </div>
+      <div class="gt-panel"><div class="gt-panel__title">ממליצים</div>
+        <div class="gt-toolbar"><button type="button" class="gt-btn--sm gt-btn--primary" data-prec-add>הוספת ממליץ</button></div>
+        <div class="gt-overflow"><table class="gt-table"><thead><tr>
+          <th>שם</th><th>טלפון</th><th>מהות הקשר</th><th></th>
+        </tr></thead><tbody>${precs.map((r) => `<tr>
+          <td><input data-prec-id="${esc(r.id)}" data-prec-field="name" value="${esc(r.name)}"></td>
+          <td><input data-prec-id="${esc(r.id)}" data-prec-field="phone" value="${esc(r.phone)}"></td>
+          <td><select data-prec-id="${esc(r.id)}" data-prec-field="relation">
+            <option value="">—</option>
+            ${opts(RECOMMENDER_RELATIONS, r.relation)}
+          </select></td>
+          <td><button type="button" class="gt-btn--sm" data-prec-remove="${esc(r.id)}">הסרה</button></td>
+        </tr>`).join('') || '<tr><td colspan="4"><div class="gt-empty">טרם הוזנו ממליצים.</div></td></tr>'}
+        </tbody></table></div>
+      </div>
+      <div class="gt-panel"><div class="gt-panel__title">מסמכים — קורות חיים, תעודות ואסמכתאות</div>
+        ${renderDocumentUploader({
+          docs: normalizeDocuments(p.documents),
+          area: 'operator',
+          scopeKey: `operator:${row.id}`
+        })}
+      </div>`;
     }
 
     return `<div class="gt-toolbar">
@@ -1556,7 +1695,7 @@ export async function mountGefenTender(root) {
   }
 
   root.onclick = async (ev) => {
-    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-preview],[data-context-preview-close],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace],[data-exp-add],[data-exp-remove],[data-rec-add],[data-rec-remove],[data-syl-add],[data-syl-remove],[data-syl-move],[data-docs-browse],[data-docs-root],[data-open-program-sub],[data-people-add],[data-filter-k-hist]');
+    const t = ev.target.closest('[data-tab],[data-select],[data-list-back],[data-admin-edit],[data-save-admin],[data-program-sub],[data-save-program],[data-save-operator],[data-goto-submission],[data-add-knowledge],[data-toggle-add-knowledge],[data-import-catalog],[data-import-historical],[data-import-knowledge-xlsx],[data-confirm-knowledge-import],[data-cancel-knowledge-import],[data-toggle-unassigned],[data-assign-knowledge],[data-save-k-related],[data-k-open],[data-context-preview],[data-context-preview-close],[data-context-copy],[data-final-copy],[data-final-toggle],[data-save-answer],[data-q-goto],[data-q-prev],[data-q-next],[data-export-answers],[data-export-form-global],[data-upload-template],[data-fill-template],[data-apply-catalog-112],[data-import-hist-text],[data-filter-admin],[data-filter-program],[data-doc-pick],[data-doc-link-add],[data-doc-unlink],[data-doc-replace],[data-exp-add],[data-exp-remove],[data-rec-add],[data-rec-remove],[data-syl-add],[data-syl-remove],[data-syl-move],[data-syl-toggle-edit],[data-syl-source-toggle],[data-knowledge-fill],[data-fill-apply-all],[data-fill-apply-selected],[data-fill-cancel],[data-pexp-add],[data-pexp-remove],[data-prec-add],[data-prec-remove],[data-docs-browse],[data-docs-root],[data-open-program-sub],[data-people-add],[data-filter-k-hist]');
     if (!t) return;
 
     if (t.matches('[data-tab]')) {
@@ -1568,7 +1707,13 @@ export async function mountGefenTender(root) {
     }
     if (t.matches('[data-select]')) {
       selected = t.dataset.select;
-      programSub = 'details';
+      const picked = rows.find((r) => r.id === selected);
+      const hasSyl = picked?.kind === 'program'
+        && normalizeSyllabusSessions(picked.payload?.syllabus_sessions).some((s) => s.topic || s.content);
+      programSub = hasSyl ? 'syllabus' : 'details';
+      syllabusEditMode = false;
+      syllabusSourceOpen = false;
+      knowledgeFillProposals = null;
       draw();
       return;
     }
@@ -1684,7 +1829,122 @@ export async function mountGefenTender(root) {
       if (!row) return;
       const p = { ...row.payload };
       root.querySelectorAll('[data-field]').forEach((x) => { p[x.dataset.field] = x.value; });
+      if (p.cv_attached === 'כן') p.cv_attached = true;
+      else if (p.cv_attached === 'לא') p.cv_attached = false;
+      if (root.querySelector('[data-pexp-field]')) {
+        const byId = new Map();
+        root.querySelectorAll('[data-pexp-id][data-pexp-field]').forEach((el) => {
+          const id = el.dataset.pexpId;
+          if (!byId.has(id)) byId.set(id, { id });
+          byId.get(id)[el.dataset.pexpField] = el.value;
+        });
+        p.person_experience_records = normalizePersonExperienceRecords([...byId.values()]);
+      }
+      if (root.querySelector('[data-prec-field]')) {
+        const byId = new Map();
+        root.querySelectorAll('[data-prec-id][data-prec-field]').forEach((el) => {
+          const id = el.dataset.precId;
+          if (!byId.has(id)) byId.set(id, { id });
+          byId.get(id)[el.dataset.precField] = el.value;
+        });
+        p.person_recommenders = normalizePersonRecommenders([...byId.values()]);
+      }
       if (await saveViaRpc(row, p)) draw();
+      return;
+    }
+    if (t.matches('[data-knowledge-fill]')) {
+      const row = get();
+      if (!row) return;
+      const synced = collectProgramPayload(row);
+      row.payload = synced;
+      knowledgeFillProposals = proposeProgramDetailFills(synced);
+      if (!knowledgeFillProposals.length) {
+        setStatus('אין הצעות לשדות ריקים על בסיס מאגר הידע', 'warn');
+        toast('אין הצעות חדשות');
+      }
+      draw();
+      return;
+    }
+    if (t.matches('[data-fill-cancel]')) {
+      knowledgeFillProposals = null;
+      draw();
+      return;
+    }
+    if (t.matches('[data-fill-apply-all], [data-fill-apply-selected]')) {
+      const row = get();
+      if (!row || !knowledgeFillProposals?.length) return;
+      const synced = collectProgramPayload(row);
+      let selectedFields = null;
+      if (t.matches('[data-fill-apply-selected]')) {
+        selectedFields = [...root.querySelectorAll('[data-fill-pick]:checked')].map((el) => el.dataset.fillPick);
+      }
+      synced.details = applyDetailProposals(synced.details, knowledgeFillProposals, selectedFields);
+      row.payload = synced;
+      knowledgeFillProposals = null;
+      dirty = true;
+      toast('ההצעות הוחלו — יש לשמור');
+      draw();
+      return;
+    }
+    if (t.matches('[data-syl-toggle-edit]')) {
+      const row = get();
+      if (syllabusEditMode && row) {
+        row.payload = collectProgramPayload(row);
+        dirty = true;
+      }
+      syllabusEditMode = !syllabusEditMode;
+      draw();
+      return;
+    }
+    if (t.matches('[data-syl-source-toggle]')) {
+      syllabusSourceOpen = !syllabusSourceOpen;
+      draw();
+      return;
+    }
+    if (t.matches('[data-pexp-add]')) {
+      const row = get();
+      if (!row) return;
+      const list = normalizePersonExperienceRecords(row.payload?.person_experience_records);
+      list.push(emptyPersonExperienceRecord());
+      row.payload = { ...row.payload, person_experience_records: list };
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-pexp-remove]')) {
+      const row = get();
+      if (!row) return;
+      const id = t.dataset.pexpRemove;
+      row.payload = {
+        ...row.payload,
+        person_experience_records: normalizePersonExperienceRecords(row.payload?.person_experience_records)
+          .filter((r) => r.id !== id)
+      };
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-prec-add]')) {
+      const row = get();
+      if (!row) return;
+      const list = normalizePersonRecommenders(row.payload?.person_recommenders);
+      list.push(emptyPersonRecommender());
+      row.payload = { ...row.payload, person_recommenders: list };
+      dirty = true;
+      draw();
+      return;
+    }
+    if (t.matches('[data-prec-remove]')) {
+      const row = get();
+      if (!row) return;
+      const id = t.dataset.precRemove;
+      row.payload = {
+        ...row.payload,
+        person_recommenders: normalizePersonRecommenders(row.payload?.person_recommenders)
+          .filter((r) => r.id !== id)
+      };
+      dirty = true;
+      draw();
       return;
     }
     if (t.matches('[data-toggle-add-knowledge]')) {
@@ -2242,7 +2502,7 @@ export async function mountGefenTender(root) {
       reader.readAsText(t.files[0]);
       return;
     }
-    if (t.matches('[data-field], [data-a], [data-q-text], [data-q-extra], [data-q-choice], [data-q-multi], [data-dev-id], [data-op-id], [data-exp-field], [data-rec-field], [data-syl-field]')) {
+    if (t.matches('[data-field], [data-a], [data-q-text], [data-q-extra], [data-q-choice], [data-q-multi], [data-dev-id], [data-op-id], [data-exp-field], [data-rec-field], [data-syl-field], [data-pexp-field], [data-prec-field], [data-fill-pick]')) {
       scheduleAutosave();
       if (t.matches('[data-field]')) {
         const key = t.dataset.field;
